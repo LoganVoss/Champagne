@@ -9,6 +9,7 @@ import {
   Bolt,
   Cable,
   Check,
+  ChevronLeft,
   ChevronRight,
   Diamond,
   Download,
@@ -146,6 +147,7 @@ export function ChampagneStudio() {
   const [renderStatus, setRenderStatus] = useState('');
   const [comparisonIds, setComparisonIds] = useState<string[]>([]);
   const [userPresets, setUserPresets] = useState<UserPreset[]>([]);
+  const [presetPage, setPresetPage] = useState(0);
   const [suggestionIndex, setSuggestionIndex] = useState(0);
   const [stateVersion, setStateVersion] = useState(0);
   const [webmcpAvailable, setWebmcpAvailable] = useState(false);
@@ -186,6 +188,8 @@ export function ChampagneStudio() {
 
   const activeRevision = revisions.find((revision) => revision.id === activeRevisionId) ?? null;
   const activeWaveform = monitorMastered && activeRevision ? activeRevision.waveform : track?.waveform ?? [];
+  const presetPageCount = Math.max(1, Math.ceil(userPresets.length / 4));
+  const visibleUserPresets = userPresets.slice(presetPage * 4, presetPage * 4 + 4);
 
   const bumpStateVersion = useCallback(() => {
     const next = stateVersionRef.current + 1;
@@ -353,6 +357,10 @@ export function ChampagneStudio() {
     return () => window.clearInterval(timer);
   }, [brief]);
 
+  useEffect(() => {
+    setPresetPage((current) => Math.min(current, Math.max(0, Math.ceil(userPresets.length / 4) - 1)));
+  }, [userPresets.length]);
+
   const markWebMCP = useCallback((action: string) => {
     setWebmcpInvoked(true);
     addReceipt({ creator: 'webmcp', title: 'ChatGPT action received', detail: action });
@@ -462,6 +470,7 @@ export function ChampagneStudio() {
       try { window.localStorage.setItem(USER_PRESETS_KEY, JSON.stringify(next)); } catch { /* Device storage may be unavailable. */ }
       return next;
     });
+    setPresetPage(0);
   }, []);
 
   const makeModifiers = (input: { intensity?: number; priorities: string[]; constraints: string[] }) => {
@@ -1245,25 +1254,27 @@ export function ChampagneStudio() {
               </div>
 
               <div className="composer">
-                {!brief && (
-                  <div className="composer-suggestion" key={suggestionIndex} aria-hidden="true">
-                    {PROMPT_SUGGESTIONS[suggestionIndex]}
-                  </div>
-                )}
-                <Textarea
-                  value={brief}
-                  onChange={(event) => setBrief(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter' && !event.shiftKey) {
-                      event.preventDefault();
-                      void submitBrief();
-                    }
-                  }}
-                  className="min-h-[76px] resize-none border-0 bg-transparent px-10 py-5 text-center font-sans text-[18px] leading-7 shadow-none focus-visible:ring-0"
-                  placeholder=""
-                  aria-label="Mastering Magic"
-                  disabled={phase === 'rendering'}
-                />
+                <div className="composer-field">
+                  {!brief && (
+                    <div className="composer-suggestion" key={suggestionIndex} aria-hidden="true">
+                      {PROMPT_SUGGESTIONS[suggestionIndex]}
+                    </div>
+                  )}
+                  <Textarea
+                    value={brief}
+                    onChange={(event) => setBrief(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' && !event.shiftKey) {
+                        event.preventDefault();
+                        void submitBrief();
+                      }
+                    }}
+                    className="min-h-[76px] resize-none border-0 bg-transparent px-10 py-5 text-center font-sans text-[18px] leading-7 shadow-none focus-visible:ring-0"
+                    placeholder=""
+                    aria-label="Mastering Magic"
+                    disabled={phase === 'rendering'}
+                  />
+                </div>
                 <Button className="send-button" size="icon" aria-label="Create local preview" disabled={!brief.trim() || phase === 'rendering'} onClick={() => void submitBrief()}>
                   {phase === 'rendering' ? <Loader2 className="animate-spin" /> : <ArrowUp />}
                 </Button>
@@ -1294,8 +1305,16 @@ export function ChampagneStudio() {
                 })}
                 {userPresets.length > 0 && (
                   <>
-                    <div className="preset-divider"><span>USER PRESETS</span><small>SAVED ON THIS DEVICE</small></div>
-                    {userPresets.map((preset) => {
+                    <div className="preset-divider">
+                      <span>USER PRESETS</span>
+                      {presetPageCount > 1 && (
+                        <div className="preset-nav">
+                          <button type="button" aria-label="Previous presets" disabled={presetPage === 0} onClick={() => setPresetPage((page) => Math.max(0, page - 1))}><ChevronLeft /></button>
+                          <button type="button" aria-label="More presets" disabled={presetPage >= presetPageCount - 1} onClick={() => setPresetPage((page) => Math.min(presetPageCount - 1, page + 1))}><ChevronRight /></button>
+                        </div>
+                      )}
+                    </div>
+                    {visibleUserPresets.map((preset) => {
                       const rendered = [...revisions].reverse().find((revision) => (
                         revision.displayName === preset.name
                         && revision.style === preset.baseStyle
@@ -1315,42 +1334,6 @@ export function ChampagneStudio() {
                   </>
                 )}
               </div>
-            </div>
-
-            <div className="surface sidebar-card change-card">
-              <div className="sidebar-heading">
-                <span>{activeRevision ? 'CURRENT STYLE' : 'READY TO MASTER'}</span>
-                {activeRevision ? (
-                  <Badge className="take-badge" variant="outline">
-                    {activeRevision.displayName === STYLE_RECIPES[activeRevision.style].name ? 'SIGNATURE' : 'CUSTOM'}
-                  </Badge>
-                ) : <Badge className="analysis-badge" variant="outline">READY</Badge>}
-              </div>
-              {activeRevision ? (
-                <>
-                  <div className="change-origin">
-                    <span className={`origin-icon ${activeRevision.creator === 'webmcp' ? 'is-agent' : ''}`}>{activeRevision.creator === 'webmcp' ? <Bot /> : activeRevision.creator === 'brief' ? <WandSparkles /> : <SlidersHorizontal />}</span>
-                    <span><strong>{activeRevision.displayName}</strong><small>{activeRevision.creator === 'webmcp' ? 'Directed by ChatGPT' : activeRevision.creator === 'brief' ? 'Created with Mastering Magic' : 'Selected manually'} · {activeRevision.prompt}</small></span>
-                  </div>
-                  <div className="change-list">
-                    <div><span>Starting point</span><strong>{STYLE_RECIPES[activeRevision.style].name}</strong></div>
-                    <div><span>Direction</span><strong>{activeRevision.intent.priorities.join(' + ') || 'Balanced'}</strong></div>
-                    <div><span>Safeguards</span><strong>{activeRevision.intent.constraints.join(' + ') || 'Champagne defaults'}</strong></div>
-                  </div>
-                  <p className="take-summary">{activeRevision.summary}</p>
-                  <div className="quick-refine">
-                    <button type="button" onClick={() => { setBrief('A little less bright.'); }}>Less bright</button>
-                    <button type="button" onClick={() => { setBrief('Make this warmer.'); }}>Warmer</button>
-                    <button type="button" onClick={() => { setBrief('Back off the intensity.'); }}>Less intense</button>
-                  </div>
-                </>
-              ) : (
-                <div className="ready-direction">
-                  <span><WandSparkles /></span>
-                  <strong>Choose a signature or describe the sound you want.</strong>
-                  <small>Champagne will build an audible custom style and add it to User Presets.</small>
-                </div>
-              )}
             </div>
 
           </aside>

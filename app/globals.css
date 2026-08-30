@@ -238,8 +238,9 @@ button { cursor: pointer; }
 .brief-header > div > span:last-child { display: flex; flex-direction: column; }
 .brief-header strong { color: rgba(255,255,255,.82); font-size: 12px; font-weight: 650; }
 .brief-surface .composer { min-height: 96px; align-items: center; margin-top: 8px; padding: 10px 11px 10px 13px; }
-.brief-surface .composer textarea { min-height: 76px; overflow: visible; padding: 20px 42px; color: rgba(255,255,255,.9); font-family: var(--font-geist-sans), Arial, sans-serif; font-size: clamp(17px,1.45vw,20px); font-weight: 520; line-height: 1.4; letter-spacing: -.025em; text-align: center; }
-.composer-suggestion { position: absolute; inset: 0 52px 0 18px; display: flex; align-items: center; justify-content: center; overflow: hidden; pointer-events: none; color: rgba(255,255,255,.37); font-family: var(--font-geist-sans), Arial, sans-serif; font-size: clamp(17px,1.45vw,20px); font-weight: 520; line-height: 1.35; letter-spacing: -.025em; text-align: center; text-wrap: balance; }
+.composer-field { position: relative; min-width: 0; flex: 1; }
+.brief-surface .composer-field textarea { min-height: 76px; overflow: visible; padding: 20px 42px; color: rgba(255,255,255,.9); font-family: var(--font-geist-sans), Arial, sans-serif; font-size: clamp(17px,1.45vw,20px); font-weight: 520; line-height: 1.4; letter-spacing: -.025em; text-align: center; }
+.composer-suggestion { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; overflow: hidden; padding: 20px 42px; pointer-events: none; color: rgba(255,255,255,.37); font-family: var(--font-geist-sans), Arial, sans-serif; font-size: clamp(17px,1.45vw,20px); font-weight: 520; line-height: 1.4; letter-spacing: -.025em; text-align: center; text-wrap: balance; }
 
 .studio-sidebar { display: flex; min-width: 0; flex-direction: column; gap: 14px; }
 .sidebar-card { padding: 14px; }
@@ -248,10 +249,14 @@ button { cursor: pointer; }
 .sidebar-heading > small { color: rgba(255,255,255,.2); font-size: 7px; font-weight: 620; letter-spacing: .09em; }
 .sidebar-heading > button { display: grid; width: 20px; height: 20px; place-items: center; border: 0; background: transparent; color: rgba(255,255,255,.25); }
 .styles-card .style-row { padding: 8px; }
-.styles-list { max-height: min(48vh, 510px); overflow-y: auto; padding-right: 2px; scrollbar-width: thin; scrollbar-color: rgba(217,179,89,.16) transparent; }
+.styles-list { max-height: min(62vh, 560px); overflow-y: auto; padding-right: 2px; scrollbar-width: thin; scrollbar-color: rgba(217,179,89,.16) transparent; }
 .preset-divider { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 10px 4px 5px; border-top: 1px solid rgba(255,255,255,.06); padding-top: 11px; }
 .preset-divider span { color: rgba(255,255,255,.4); font-size: 7px; font-weight: 750; letter-spacing: .14em; }
-.preset-divider small { color: rgba(255,255,255,.2); font-size: 6px; letter-spacing: .08em; }
+.preset-nav { display: flex; gap: 4px; }
+.preset-nav button { display: grid; width: 22px; height: 22px; place-items: center; border: 1px solid rgba(255,255,255,.065); border-radius: 7px; background: rgba(255,255,255,.018); color: rgba(255,255,255,.42); transition: .15s ease; }
+.preset-nav button:hover:not(:disabled) { border-color: rgba(217,179,89,.2); background: rgba(217,179,89,.05); color: #d5b76d; }
+.preset-nav button:disabled { cursor: default; opacity: .25; }
+.preset-nav svg { width: 10px; }
 .preset-row .style-glyph { border-color: rgba(140,89,242,.12); background: rgba(140,89,242,.055); color: #a98ae8; }
 .preset-row.is-selected .style-glyph { border-color: rgba(217,179,89,.28); background: linear-gradient(145deg,#e7c267,#aa7d2e); color: #16120a; }
 .ready-mark { display: grid; width: 17px; height: 17px; place-items: center; border-radius: 50%; background: rgba(217,179,89,.1); color: #d9b359; }
@@ -317,7 +322,7 @@ button { cursor: pointer; }
 
 @media (max-width: 1100px) {
   .studio-layout { grid-template-columns: 1fr; }
-  .studio-sidebar { display: grid; grid-template-columns: 1fr 1fr; }
+  .studio-sidebar { display: block; }
 }
 
 @media (max-width: 760px) {
