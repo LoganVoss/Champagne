@@ -14,15 +14,15 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://champagne-mastering.vossx.chatgpt.site'),
-  title: 'Champagne — AI-directed mastering studio',
+  title: 'Champagne — Agentic Music Mastering',
   description:
-    'Direct a professional mastering engine in plain language. Hear every revision, compare versions, and export a release-ready WAV locally.',
+    'Your sound just leveled up. Discover audio in a new dimension with Champagne’s agent-directed mastering engine.',
   icons: {
     icon: '/favicon-64.png',
     apple: '/champagne-icon.png',
   },
   openGraph: {
-    title: 'Champagne — AI-directed mastering studio',
+    title: 'Champagne — Agentic Music Mastering',
     description:
       'AI directs. Champagne masters. Hear every revision and keep your audio on your device.',
     type: 'website',
@@ -30,7 +30,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Champagne — AI-directed mastering studio',
+    title: 'Champagne — Agentic Music Mastering',
     description: 'AI directs. Champagne masters. Your audio stays on your device.',
     images: ['/og.png'],
   },

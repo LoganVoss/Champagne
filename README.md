@@ -1,6 +1,6 @@
 # Champagne Web
 
-Champagne Web is a local-first, WebMCP-enabled mastering studio. A person or an agent can direct the same live mastering session, hear every result, compare reversible takes, adjust trim and fades, and stage a 24-bit / 48 kHz WAV for a deliberate human download.
+Champagne Web is a local-first, WebMCP-enabled mastering studio. A person or an agent can direct the same live mastering session, hear every result, switch among signature and custom styles, adjust trim and fade curves, and stage a 24-bit / 48 kHz WAV for a deliberate human download.
 
 ## Run locally
 
@@ -9,7 +9,17 @@ npm install
 npm run dev
 ```
 
-Open the local URL printed by the development server. Use **Try the demo loop** for a deterministic, rights-clear synthetic track, or load your own WAV, AIFF, MP3, M4A, or FLAC file. Browser codec support varies by platform.
+Open the local URL printed by the development server. Use **Demo** to load the included `Motorcycle` showcase track, or load your own WAV, AIFF, MP3, M4A, or FLAC file. Browser codec support varies by platform.
+
+## Mastering Brief
+
+The four Champagne signatures are safe engine baselines, not the limit of the prompt surface. The local intent compiler recognizes 25 named mastering directions and combines twelve bounded controls:
+
+- intensity, warmth, brightness, punch, and dynamics
+- low end, presence, air, and width
+- glue, density, and smoothness
+
+Each successful brief creates a descriptively named custom style and saves its metadata in **User Presets** on that device. Audio buffers are never persisted with the preset. Unknown language is rejected with useful guidance instead of silently falling back to an unchanged signature.
 
 ## WebMCP
 
@@ -26,7 +36,7 @@ The top-level studio page imperatively registers eight page-bound tools through 
 
 Every tool calls the same command functions used by the manual style controls and the on-page Mastering Brief. Mutations validate a current `expectedStateVersion`, update the visible studio, create a receipt, and return only after the UI has had time to commit.
 
-`commit_master` stages a take but never starts a download. The user must click **Download WAV** in the studio.
+`commit_master` stages a style but never starts a download. The user must click **Download WAV** in the studio.
 
 ## Privacy boundary
 
@@ -48,7 +58,7 @@ The contest build ports Champagne’s four authoritative style identities and re
 - style-dependent compression and saturation
 - bounded mid/side stereo width
 - linked 5 ms look-ahead peak control
-- mirrored parabolic fades
+- mirrored, pressure-adjustable parabolic fade curves
 - deterministic TPDF dither
 - 24-bit / 48 kHz PCM WAV output
 
@@ -67,5 +77,5 @@ For WebMCP verification, use ChatGPT’s current built-in browser or WebMCP-enab
 
 - Choose and add a recognized open-source license before making the submission repository public.
 - Keep the deployed app free and available through the judging period.
-- Record a public demo under three minutes using the included synthetic loop or music you own.
-- Show the ChatGPT conversation calling site tools, the audible A/B/C result in Champagne, and the human-only download boundary.
+- Record a public demo under three minutes using music you own or are authorized to show.
+- Show the ChatGPT conversation calling site tools, custom styles appearing in User Presets, real-time original/master switching, and the human-only download boundary.

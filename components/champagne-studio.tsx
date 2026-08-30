@@ -14,7 +14,6 @@ import {
   Download,
   Eye,
   Flame,
-  GitBranch,
   Headphones,
   Info,
   Loader2,
@@ -30,7 +29,6 @@ import {
   Sparkles,
   Upload,
   WandSparkles,
-  WifiOff,
   X,
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -49,15 +47,14 @@ import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import {
   analyzeAudioBuffer,
-  createDemoTrack,
   decodeAudioFile,
   encodeMasterWav24,
   makeWaveform,
+  parabolicFadeGain,
   renderMasteringTake,
 } from '@/lib/audio-engine';
 import {
   clamp,
-  dbToGain,
   DEFAULT_MODIFIERS,
   formatTime,
   interpretBrief,
@@ -75,6 +72,7 @@ import {
   type StudioPhase,
   type StyleId,
   type TrimSettings,
+  type UserPreset,
 } from '@/lib/studio';
 import { registerChampagneTools, type StudioCommandApi } from '@/lib/webmcp';
 
@@ -103,14 +101,27 @@ const styleIcons = {
 } satisfies Record<StyleId, typeof Bolt>;
 
 const afterPaint = () => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+const USER_PRESETS_KEY = 'champagne.user-presets.v1';
+const PROMPT_SUGGESTIONS = [
+  'Club-loud, but keep the kick punchy.',
+  'Warm analog weight with a smooth top.',
+  'Crystal clear without sounding brittle.',
+  'Cinematic scale with natural dynamics.',
+  'Tighten the low end and bring the drums forward.',
+  'Dark, intimate, and expensive.',
+  'Open the stereo image and add a little air.',
+  'Radio-ready energy without crushing it.',
+  'Gentle polish—keep it transparent.',
+];
 
 function round(value: number, digits = 1): number {
   const scale = 10 ** digits;
   return Math.round(value * scale) / scale;
 }
 
-function safeDownloadName(name: string, style: StyleId): string {
+function safeDownloadName(name: string, styleName: string): string {
   const base = name.replace(/\.[^.]+$/, '').replace(/[^a-zA-Z0-9 _-]/g, '').trim() || 'track';
+  const style = styleName.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '').slice(0, 36) || 'custom';
   return `${base}_champagne_${style}.wav`;
 }
 
@@ -120,7 +131,14 @@ export function ChampagneStudio() {
   const [revisions, setRevisions] = useState<MasterRevision[]>([]);
   const [activeRevisionId, setActiveRevisionId] = useState<string | null>(null);
   const [monitorMastered, setMonitorMastered] = useState(true);
-  const [trim, setTrim] = useState<TrimSettings>({ startSeconds: 0, endSeconds: 0, fadeInSeconds: 0, fadeOutSeconds: 0 });
+  const [trim, setTrim] = useState<TrimSettings>({
+    startSeconds: 0,
+    endSeconds: 0,
+    fadeInSeconds: 0,
+    fadeOutSeconds: 0,
+    fadeInCurve: 1 / 3,
+    fadeOutCurve: 1 / 3,
+  });
   const [currentTime, setCurrentTime] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [brief, setBrief] = useState('');
@@ -129,7 +147,8 @@ export function ChampagneStudio() {
   const [renderProgress, setRenderProgress] = useState(0);
   const [renderStatus, setRenderStatus] = useState('');
   const [comparisonIds, setComparisonIds] = useState<string[]>([]);
-  const [loudnessMatched, setLoudnessMatched] = useState(true);
+  const [userPresets, setUserPresets] = useState<UserPreset[]>([]);
+  const [suggestionIndex, setSuggestionIndex] = useState(0);
   const [stateVersion, setStateVersion] = useState(0);
   const [webmcpAvailable, setWebmcpAvailable] = useState(false);
   const [webmcpInvoked, setWebmcpInvoked] = useState(false);
@@ -141,6 +160,7 @@ export function ChampagneStudio() {
   const [isDropTargeted, setIsDropTargeted] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const briefInputRef = useRef<HTMLTextAreaElement>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const playbackRef = useRef<PlaybackRuntime | null>(null);
   const renderBusyRef = useRef(false);
@@ -154,7 +174,6 @@ export function ChampagneStudio() {
     monitorMastered,
     trim,
     comparisonIds,
-    loudnessMatched,
     agentPaused,
   });
   runtimeRef.current = {
@@ -165,7 +184,6 @@ export function ChampagneStudio() {
     monitorMastered,
     trim,
     comparisonIds,
-    loudnessMatched,
     agentPaused,
   };
 
@@ -198,11 +216,6 @@ export function ChampagneStudio() {
     }
     playbackRef.current = null;
     setIsPlaying(false);
-  }, []);
-
-  const monitorGainFor = useCallback((analysis: AudioAnalysis) => {
-    if (!runtimeRef.current.loudnessMatched || runtimeRef.current.comparisonIds.length < 2) return 1;
-    return dbToGain(clamp(-18 - analysis.rmsDbfs, -6, 6));
   }, []);
 
   const getMonitoredSource = useCallback(() => {
@@ -240,7 +253,7 @@ export function ChampagneStudio() {
     const source = context.createBufferSource();
     source.buffer = monitored.buffer;
     const gain = context.createGain();
-    const baseGain = monitorGainFor(monitored.analysis);
+    const baseGain = 1;
     gain.gain.setValueAtTime(0, now);
     gain.gain.linearRampToValueAtTime(baseGain, now + 0.012);
     source.connect(gain);
@@ -251,7 +264,7 @@ export function ChampagneStudio() {
     playbackRef.current = { context, source, gain, offset: safeOffset, startedAt: now, baseGain };
     setCurrentTime(safeOffset);
     setIsPlaying(true);
-  }, [currentTime, getMonitoredSource, monitorGainFor]);
+  }, [currentTime, getMonitoredSource]);
 
   const seekTo = useCallback((seconds: number) => {
     const next = clamp(seconds, runtimeRef.current.trim.startSeconds, runtimeRef.current.trim.endSeconds);
@@ -275,10 +288,10 @@ export function ChampagneStudio() {
       let fade = 1;
       if (liveTrim.fadeInSeconds > 0.001 && now < liveTrim.startSeconds + liveTrim.fadeInSeconds) {
         const x = clamp((now - liveTrim.startSeconds) / liveTrim.fadeInSeconds, 0, 1);
-        fade = (x * (4 - x)) / 3;
+        fade = parabolicFadeGain(x, liveTrim.fadeInCurve);
       } else if (liveTrim.fadeOutSeconds > 0.001 && now > liveTrim.endSeconds - liveTrim.fadeOutSeconds) {
         const x = clamp((liveTrim.endSeconds - now) / liveTrim.fadeOutSeconds, 0, 1);
-        fade = (x * (4 - x)) / 3;
+        fade = parabolicFadeGain(x, liveTrim.fadeOutCurve);
       }
       playback.gain.gain.setTargetAtTime(playback.baseGain * fade, playback.context.currentTime, 0.006);
       setCurrentTime(now);
@@ -304,6 +317,44 @@ export function ChampagneStudio() {
     stopPlayback(false);
     void audioContextRef.current?.close();
   }, [stopPlayback]);
+
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(USER_PRESETS_KEY);
+      if (!saved) return;
+      const parsed = JSON.parse(saved) as Array<Partial<UserPreset>>;
+      if (!Array.isArray(parsed)) return;
+      const valid = parsed
+        .filter((item) => (
+          typeof item.id === 'string'
+          && typeof item.name === 'string'
+          && STYLE_IDS.includes(item.baseStyle as StyleId)
+          && item.modifiers && typeof item.modifiers === 'object'
+        ))
+        .map((item) => ({
+          id: item.id!,
+          name: item.name!.slice(0, 48),
+          baseStyle: item.baseStyle as StyleId,
+          modifiers: { ...DEFAULT_MODIFIERS, ...item.modifiers },
+          priorities: Array.isArray(item.priorities) ? item.priorities.slice(0, 6) : [],
+          constraints: Array.isArray(item.constraints) ? item.constraints.slice(0, 6) : [],
+          description: typeof item.description === 'string' ? item.description.slice(0, 180) : 'Custom Champagne style.',
+          createdAt: typeof item.createdAt === 'number' ? item.createdAt : Date.now(),
+        }))
+        .slice(0, 24);
+      setUserPresets(valid);
+    } catch {
+      // A malformed device-local preset cache should never block the studio.
+    }
+  }, []);
+
+  useEffect(() => {
+    if (brief.trim() || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const timer = window.setInterval(() => {
+      setSuggestionIndex((current) => (current + 1) % PROMPT_SUGGESTIONS.length);
+    }, 3600);
+    return () => window.clearInterval(timer);
+  }, [brief]);
 
   const markWebMCP = useCallback((action: string) => {
     setWebmcpInvoked(true);
@@ -346,7 +397,14 @@ export function ChampagneStudio() {
     const waveform = makeWaveform(buffer);
     const loaded: TrackRuntime = { name, sourceKey, buffer, waveform, analysis };
     setTrack(loaded);
-    setTrim({ startSeconds: 0, endSeconds: buffer.duration, fadeInSeconds: 0, fadeOutSeconds: 0 });
+    setTrim({
+      startSeconds: 0,
+      endSeconds: buffer.duration,
+      fadeInSeconds: 0,
+      fadeOutSeconds: 0,
+      fadeInCurve: 1 / 3,
+      fadeOutCurve: 1 / 3,
+    });
     setRenderProgress(100);
     setRenderStatus('Ready for direction');
     setPhase('ready');
@@ -375,9 +433,39 @@ export function ChampagneStudio() {
   }, [loadDecodedTrack]);
 
   const loadDemo = useCallback(async () => {
-    const buffer = createDemoTrack();
-    await loadDecodedTrack('Champagne Demo Loop.wav', 'champagne-demo-loop-v1', buffer);
+    try {
+      setPhase('analyzing');
+      setRenderStatus('Loading Motorcycle');
+      setRenderProgress(8);
+      const response = await fetch('/motorcycle-demo.m4a');
+      if (!response.ok) throw new Error('The demo track is unavailable.');
+      const blob = await response.blob();
+      const file = new File([blob], 'Motorcycle.m4a', { type: 'audio/mp4' });
+      const buffer = await decodeAudioFile(file);
+      await loadDecodedTrack('Motorcycle', 'motorcycle-demo-v1', buffer);
+    } catch (error) {
+      setPhase('empty');
+      setNotice(error instanceof Error ? error.message : 'Champagne could not load the demo track.');
+    }
   }, [loadDecodedTrack]);
+
+  const savePresetToDevice = useCallback((revision: MasterRevision) => {
+    const preset: UserPreset = {
+      id: makePlanHash(revision.style, revision.intent.modifiers, 'device-preset'),
+      name: revision.displayName,
+      baseStyle: revision.style,
+      modifiers: revision.intent.modifiers,
+      priorities: revision.intent.priorities,
+      constraints: revision.intent.constraints,
+      description: revision.summary,
+      createdAt: Date.now(),
+    };
+    setUserPresets((current) => {
+      const next = [preset, ...current.filter((item) => item.id !== preset.id)].slice(0, 24);
+      try { window.localStorage.setItem(USER_PRESETS_KEY, JSON.stringify(next)); } catch { /* Device storage may be unavailable. */ }
+      return next;
+    });
+  }, []);
 
   const makeModifiers = (input: { intensity?: number; priorities: string[]; constraints: string[] }) => {
     const modifiers = { ...DEFAULT_MODIFIERS, intensity: clamp(input.intensity ?? 0, -1, 1) };
@@ -385,9 +473,12 @@ export function ChampagneStudio() {
     if (input.priorities.includes('warmth')) modifiers.warmth = 0.25;
     if (input.priorities.includes('clarity')) modifiers.brightness = 0.2;
     if (input.priorities.includes('dynamic_range')) modifiers.dynamics = 0.45;
+    if (input.priorities.some((priority) => priority.includes('low'))) modifiers.lowEnd = 0.22;
+    if (input.priorities.includes('presence')) modifiers.presence = 0.22;
+    if (input.priorities.includes('width')) modifiers.width = 0.3;
     if (input.constraints.some((constraint) => constraint.includes('preserve_transients'))) modifiers.punch = Math.max(0.35, modifiers.punch);
     if (input.constraints.some((constraint) => constraint.includes('keep_dynamic'))) modifiers.dynamics = Math.max(0.5, modifiers.dynamics);
-    if (input.constraints.some((constraint) => constraint.includes('avoid_harshness'))) modifiers.brightness = Math.min(modifiers.brightness, -0.12);
+    if (input.constraints.some((constraint) => constraint.includes('avoid_harshness'))) modifiers.smoothness = Math.max(modifiers.smoothness, 0.3);
     return modifiers;
   };
 
@@ -398,6 +489,8 @@ export function ChampagneStudio() {
     constraints: string[];
     intensity?: number;
     modifiers?: MasteringModifiers;
+    customName?: string;
+    matchedDirections?: string[];
     parentId?: string;
     creator: Creator;
     prompt: string;
@@ -410,20 +503,37 @@ export function ChampagneStudio() {
     const sourceTrack = snapshot.track!;
     const startingVersion = stateVersionRef.current;
     renderBusyRef.current = true;
-    if (input.creator === 'webmcp') markWebMCP(`Creating a ${STYLE_RECIPES[input.baseStyle].name} take`);
+    if (input.creator === 'webmcp') markWebMCP(`Creating a custom style from ${STYLE_RECIPES[input.baseStyle].name}`);
     setPhase('rendering');
     setRenderStatus('Compiling the Champagne plan');
     setRenderProgress(16);
     setMonitorMastered(true);
 
-    const modifiers = input.modifiers ?? makeModifiers(input);
+    const requestedModifiers = input.modifiers ?? makeModifiers(input);
+    const modifiers = { ...DEFAULT_MODIFIERS };
+    for (const key of Object.keys(modifiers) as Array<keyof MasteringModifiers>) {
+      const value = requestedModifiers[key];
+      modifiers[key] = clamp(Number.isFinite(value) ? value : 0, -1, 1);
+    }
+    const displayName = (input.customName?.trim()
+      || (input.parentId ? 'Refined Style' : STYLE_RECIPES[input.baseStyle].name)).slice(0, 48);
     const intent: MasteringIntent = {
       style: input.baseStyle,
+      customName: displayName,
+      matchedDirections: input.matchedDirections ?? [],
       priorities: input.priorities,
       constraints: input.constraints,
       modifiers,
     };
-    setIntentDisplay({ mode: input.parentId ? 'refine' : 'create', style: input.baseStyle, priorities: input.priorities, constraints: input.constraints, modifiers });
+    setIntentDisplay({
+      mode: input.parentId ? 'refine' : 'create',
+      style: input.baseStyle,
+      customName: displayName,
+      matchedDirections: input.matchedDirections ?? [],
+      priorities: input.priorities,
+      constraints: input.constraints,
+      modifiers,
+    });
     await afterPaint();
     setRenderStatus('Rendering locally');
     setRenderProgress(52);
@@ -433,12 +543,16 @@ export function ChampagneStudio() {
       if (startingVersion !== stateVersionRef.current) return { ok: false, code: 'STALE_STATE', message: 'The project changed while the preview was rendering.' };
       const currentRevisions = runtimeRef.current.revisions;
       const parent = input.parentId ? currentRevisions.find((revision) => revision.id === input.parentId) : undefined;
-      const rootCount = currentRevisions.filter((revision) => !revision.parentId).length;
-      const childCount = parent ? currentRevisions.filter((revision) => revision.parentId === parent.id).length : 0;
-      const label = parent ? `${parent.label}${childCount + 2}` : String.fromCharCode(65 + Math.min(25, rootCount));
+      const changedDimensions = (Object.entries(modifiers) as Array<[keyof MasteringModifiers, number]>)
+        .filter(([, value]) => Math.abs(value) >= .08)
+        .map(([key]) => key.replace(/([A-Z])/g, ' $1').toLowerCase())
+        .slice(0, 5);
+      const summary = displayName === STYLE_RECIPES[input.baseStyle].name
+        ? STYLE_RECIPES[input.baseStyle].summary
+        : `${displayName} uses ${STYLE_RECIPES[input.baseStyle].name} as a starting point, then reshapes ${changedDimensions.join(', ') || 'the overall balance'} through bounded Champagne controls.`;
       const revision: MasterRevision = {
         id: makeId('take'),
-        label,
+        displayName,
         parentId: parent?.id,
         style: input.baseStyle,
         creator: input.creator,
@@ -448,18 +562,19 @@ export function ChampagneStudio() {
         buffer,
         waveform: makeWaveform(buffer),
         analysis: analyzeAudioBuffer(buffer),
-        summary: STYLE_RECIPES[input.baseStyle].summary,
+        summary,
         planHash: makePlanHash(input.baseStyle, modifiers, sourceTrack.sourceKey),
       };
       setRevisions((current) => [...current, revision]);
+      if (input.creator !== 'manual') savePresetToDevice(revision);
       setActiveRevisionId(revision.id);
       setComparisonIds((current) => current.length ? [...new Set([...current, revision.id])].slice(-3) : [revision.id]);
       setExportReadyId(null);
-      setRenderStatus('Take ready');
+      setRenderStatus('Style ready');
       setRenderProgress(100);
       setPhase('preview_ready');
       const nextVersion = bumpStateVersion();
-      addReceipt({ creator: input.creator, title: `Take ${label} created`, detail: `${STYLE_RECIPES[input.baseStyle].name} · ${input.priorities.join(' + ') || 'balanced direction'}`, revisionId: revision.id });
+      addReceipt({ creator: input.creator, title: `${displayName} created`, detail: `${STYLE_RECIPES[input.baseStyle].name} baseline · ${input.priorities.join(' + ') || 'balanced direction'}`, revisionId: revision.id });
       if (playbackRef.current) void startPlayback(currentTime, { buffer, analysis: revision.analysis });
       await afterPaint();
       return {
@@ -467,20 +582,20 @@ export function ChampagneStudio() {
         commandId: makeId('cmd'),
         stateVersion: nextVersion,
         takeId: revision.id,
-        takeLabel: label,
-        summary: `Created audible Take ${label} with ${STYLE_RECIPES[input.baseStyle].name}.`,
+        styleName: displayName,
+        summary: `Created the audible custom style “${displayName}” from a ${STYLE_RECIPES[input.baseStyle].name} baseline.`,
         changed: { style: input.baseStyle, priorities: input.priorities, constraints: input.constraints },
         nextActions: ['refine_mastering_take', 'stage_comparison', 'commit_master'],
       };
     } catch (error) {
       const cancelled = error instanceof DOMException && error.name === 'AbortError';
       setPhase(runtimeRef.current.revisions.length ? 'preview_ready' : 'ready');
-      setNotice(cancelled ? 'The local render was cancelled.' : 'Champagne could not render this take.');
+      setNotice(cancelled ? 'The local render was cancelled.' : 'Champagne could not render this style.');
       return { ok: false, code: cancelled ? 'CANCELLED' : 'RENDER_FAILED', message: cancelled ? 'The local render was cancelled.' : 'The local render failed.' };
     } finally {
       renderBusyRef.current = false;
     }
-  }, [addReceipt, bumpStateVersion, currentTime, markWebMCP, startPlayback, validateMutation]);
+  }, [addReceipt, bumpStateVersion, currentTime, markWebMCP, savePresetToDevice, startPlayback, validateMutation]);
 
   const refineTakeCommand = useCallback(async (input: {
     expectedStateVersion: number;
@@ -493,15 +608,19 @@ export function ChampagneStudio() {
     signal?: AbortSignal;
   }) => {
     const source = runtimeRef.current.revisions.find((revision) => revision.id === input.sourceTakeId);
-    if (!source) return { ok: false, code: 'TAKE_NOT_FOUND', message: 'That mastering take is no longer available.' };
+    if (!source) return { ok: false, code: 'TAKE_NOT_FOUND', message: 'That mastering style is no longer available.' };
     const delta = (input.amount === 'medium' ? 0.42 : 0.24) * (input.direction === 'increase' ? 1 : -1);
     const modifiers = { ...source.intent.modifiers, [input.dimension]: clamp(source.intent.modifiers[input.dimension] + delta, -1, 1) };
+    const dimensionLabel = input.dimension.replace(/([A-Z])/g, ' $1').trim();
+    const refinementName = `${source.displayName} · ${input.direction === 'increase' ? 'More' : 'Less'} ${dimensionLabel}`;
     return createTakeCommand({
       expectedStateVersion: input.expectedStateVersion,
       baseStyle: source.style,
       priorities: source.intent.priorities,
       constraints: source.intent.constraints,
       modifiers,
+      customName: refinementName,
+      matchedDirections: source.intent.matchedDirections,
       parentId: source.id,
       creator: input.creator,
       prompt: input.prompt,
@@ -528,15 +647,23 @@ export function ChampagneStudio() {
     if (input.creator === 'webmcp') markWebMCP(`Creating ${uniqueStyles.length} mastering directions`);
     setPhase('rendering');
     setMonitorMastered(true);
-    setRenderStatus('Building the mastering court');
+    setRenderStatus('Building custom styles');
     setRenderProgress(8);
     const constraintList = input.constraint === 'none' ? [] : [input.constraint.replaceAll('_', ' ')];
-    setIntentDisplay({ mode: 'variations', style: uniqueStyles[0], styles: uniqueStyles, priorities: ['contrast'], constraints: constraintList, modifiers: { ...DEFAULT_MODIFIERS } });
+    setIntentDisplay({
+      mode: 'variations',
+      style: uniqueStyles[0],
+      styles: uniqueStyles,
+      customName: 'Three Directions',
+      matchedDirections: [],
+      priorities: ['contrast'],
+      constraints: constraintList,
+      modifiers: { ...DEFAULT_MODIFIERS },
+    });
     await afterPaint();
 
     try {
       const created: MasterRevision[] = [];
-      const currentRoots = snapshot.revisions.filter((revision) => !revision.parentId).length;
       for (let index = 0; index < uniqueStyles.length; index += 1) {
         if (input.signal?.aborted) throw new DOMException('Cancelled', 'AbortError');
         const style = uniqueStyles[index];
@@ -547,15 +674,28 @@ export function ChampagneStudio() {
           constraints: constraintList,
         });
         const buffer = await renderMasteringTake(sourceTrack.buffer, style, modifiers, input.signal);
-        const label = String.fromCharCode(65 + Math.min(25, currentRoots + index));
+        const displayName = style === 'warm_presence'
+          ? 'Warm Analog'
+          : style === 'modern_crisp'
+            ? 'Open Air'
+            : style === 'dominant'
+              ? 'Club Impact'
+              : STYLE_RECIPES[style].name;
         created.push({
           id: makeId('take'),
-          label,
+          displayName,
           style,
           creator: input.creator,
           createdAt: Date.now() + index,
           prompt: input.prompt,
-          intent: { style, priorities: style === 'dominant' ? ['loudness', 'punch'] : style === 'warm_presence' ? ['warmth'] : ['clarity'], constraints: constraintList, modifiers },
+          intent: {
+            style,
+            customName: displayName,
+            matchedDirections: [displayName],
+            priorities: style === 'dominant' ? ['loudness', 'punch'] : style === 'warm_presence' ? ['warmth'] : ['clarity'],
+            constraints: constraintList,
+            modifiers,
+          },
           buffer,
           waveform: makeWaveform(buffer),
           analysis: analyzeAudioBuffer(buffer),
@@ -565,16 +705,15 @@ export function ChampagneStudio() {
       }
       if (startingVersion !== stateVersionRef.current) return { ok: false, code: 'STALE_STATE', message: 'The project changed while the variations were rendering.' };
       setRevisions((current) => [...current, ...created]);
+      created.forEach(savePresetToDevice);
       setComparisonIds(created.map((revision) => revision.id));
       setActiveRevisionId(created[0].id);
-      setLoudnessMatched(true);
       runtimeRef.current.comparisonIds = created.map((revision) => revision.id);
-      runtimeRef.current.loudnessMatched = true;
       setRenderProgress(100);
-      setRenderStatus('A/B/C ready');
+      setRenderStatus('Styles ready');
       setPhase('preview_ready');
       const nextVersion = bumpStateVersion();
-      addReceipt({ creator: input.creator, title: `${created.length} takes ready`, detail: 'Warm, open, and club-loud directions staged for loudness-matched comparison.', revisionId: created[0].id });
+      addReceipt({ creator: input.creator, title: `${created.length} custom styles ready`, detail: 'Warm, open, and club-loud directions added to Your Styles.', revisionId: created[0].id });
       if (playbackRef.current) void startPlayback(currentTime, { buffer: created[0].buffer, analysis: created[0].analysis });
       await afterPaint();
       return {
@@ -582,9 +721,8 @@ export function ChampagneStudio() {
         commandId: makeId('cmd'),
         stateVersion: nextVersion,
         takeIds: created.map((revision) => revision.id),
-        takeLabels: created.map((revision) => revision.label),
-        summary: `Created ${created.length} audible takes and staged the A/B/C deck.`,
-        loudnessMatched: true,
+        styleNames: created.map((revision) => revision.displayName),
+        summary: `Created ${created.length} audible custom styles and added them to the style pane.`,
         nextActions: ['stage_comparison', 'refine_mastering_take', 'commit_master'],
       };
     } catch (error) {
@@ -594,30 +732,27 @@ export function ChampagneStudio() {
     } finally {
       renderBusyRef.current = false;
     }
-  }, [addReceipt, bumpStateVersion, currentTime, markWebMCP, startPlayback, validateMutation]);
+  }, [addReceipt, bumpStateVersion, currentTime, markWebMCP, savePresetToDevice, startPlayback, validateMutation]);
 
   const stageComparisonCommand = useCallback(async (input: {
     expectedStateVersion: number;
     takeIds: string[];
-    loudnessMatched: boolean;
     creator: Creator;
   }) => {
     if (input.creator === 'webmcp' && runtimeRef.current.agentPaused) return { ok: false, code: 'AGENT_PAUSED', message: 'ChatGPT control is paused in Champagne.' };
     if (input.expectedStateVersion !== stateVersionRef.current) return { ok: false, code: 'STALE_STATE', message: 'Call get_studio_state and retry.', currentStateVersion: stateVersionRef.current };
     const unique = [...new Set(input.takeIds)].filter((id) => runtimeRef.current.revisions.some((revision) => revision.id === id)).slice(0, 3);
-    if (unique.length < 2) return { ok: false, code: 'TAKE_NOT_FOUND', message: 'Choose two or three available takes.' };
-    if (input.creator === 'webmcp') markWebMCP('Staging the live A/B/C deck');
+    if (unique.length < 2) return { ok: false, code: 'TAKE_NOT_FOUND', message: 'Choose two or three available styles.' };
+    if (input.creator === 'webmcp') markWebMCP('Staging custom styles');
     setComparisonIds(unique);
-    setLoudnessMatched(input.loudnessMatched);
     runtimeRef.current.comparisonIds = unique;
-    runtimeRef.current.loudnessMatched = input.loudnessMatched;
     setActiveRevisionId(unique[0]);
     setMonitorMastered(true);
-    addReceipt({ creator: input.creator, title: 'Comparison staged', detail: `${unique.length} takes · ${input.loudnessMatched ? 'loudness matched' : 'native level'}` });
+    addReceipt({ creator: input.creator, title: 'Styles staged', detail: `${unique.length} custom styles are ready in the mastering pane.` });
     const first = runtimeRef.current.revisions.find((revision) => revision.id === unique[0]);
     if (first && playbackRef.current) void startPlayback(currentTime, { buffer: first.buffer, analysis: first.analysis });
     await afterPaint();
-    return { ok: true, stateVersion: stateVersionRef.current, comparisonTakeIds: unique, loudnessMatched: input.loudnessMatched, summary: 'The live comparison deck is ready.' };
+    return { ok: true, stateVersion: stateVersionRef.current, comparisonTakeIds: unique, summary: 'The requested custom styles are ready in the mastering pane.' };
   }, [addReceipt, currentTime, markWebMCP, startPlayback]);
 
   const setTrimFadesCommand = useCallback(async (input: {
@@ -626,6 +761,8 @@ export function ChampagneStudio() {
     endSeconds: number;
     fadeInSeconds: number;
     fadeOutSeconds: number;
+    fadeInCurve?: number;
+    fadeOutCurve?: number;
     creator: Creator;
   }) => {
     if (input.creator === 'webmcp' && runtimeRef.current.agentPaused) return { ok: false, code: 'AGENT_PAUSED', message: 'ChatGPT control is paused in Champagne.' };
@@ -634,13 +771,15 @@ export function ChampagneStudio() {
     if (!duration) return { ok: false, code: 'NO_TRACK', message: 'Load a track first.' };
     const start = clamp(input.startSeconds, 0, duration - 0.2);
     const end = clamp(input.endSeconds, start + 0.2, duration);
-    if (![start, end, input.fadeInSeconds, input.fadeOutSeconds].every(Number.isFinite)) return { ok: false, code: 'INVALID_EDIT', message: 'Trim and fade values must be finite numbers.' };
+    if (![start, end, input.fadeInSeconds, input.fadeOutSeconds, input.fadeInCurve ?? 0, input.fadeOutCurve ?? 0].every(Number.isFinite)) return { ok: false, code: 'INVALID_EDIT', message: 'Trim, fade, and curve values must be finite numbers.' };
     const selection = end - start;
     const next = {
       startSeconds: start,
       endSeconds: end,
       fadeInSeconds: clamp(input.fadeInSeconds, 0, selection * 0.45),
       fadeOutSeconds: clamp(input.fadeOutSeconds, 0, selection * 0.45),
+      fadeInCurve: clamp(input.fadeInCurve ?? runtimeRef.current.trim.fadeInCurve, -1, 1),
+      fadeOutCurve: clamp(input.fadeOutCurve ?? runtimeRef.current.trim.fadeOutCurve, -1, 1),
     };
     if (input.creator === 'webmcp') markWebMCP('Updating trim and fades');
     setTrim(next);
@@ -658,14 +797,14 @@ export function ChampagneStudio() {
     if (input.creator === 'webmcp' && runtimeRef.current.agentPaused) return { ok: false, code: 'AGENT_PAUSED', message: 'ChatGPT control is paused in Champagne.' };
     if (input.expectedStateVersion !== stateVersionRef.current) return { ok: false, code: 'STALE_STATE', message: 'Call get_studio_state and retry.', currentStateVersion: stateVersionRef.current };
     const revision = runtimeRef.current.revisions.find((candidate) => candidate.id === input.takeId);
-    if (!revision) return { ok: false, code: 'TAKE_NOT_FOUND', message: 'That mastering take is not available.' };
-    if (input.creator === 'webmcp') markWebMCP(`Preparing Take ${revision.label} for export`);
+    if (!revision) return { ok: false, code: 'TAKE_NOT_FOUND', message: 'That mastering style is not available.' };
+    if (input.creator === 'webmcp') markWebMCP(`Preparing ${revision.displayName} for export`);
     setActiveRevisionId(revision.id);
     setMonitorMastered(true);
     setExportReadyId(revision.id);
     setPhase('export_ready');
     const nextVersion = bumpStateVersion();
-    addReceipt({ creator: input.creator, title: `Take ${revision.label} selected`, detail: '24-bit / 48 kHz WAV is staged. Download still requires your click.', revisionId: revision.id });
+    addReceipt({ creator: input.creator, title: `${revision.displayName} selected`, detail: '24-bit / 48 kHz WAV is staged. Download still requires your click.', revisionId: revision.id });
     if (playbackRef.current) void startPlayback(currentTime, { buffer: revision.buffer, analysis: revision.analysis });
     await afterPaint();
     return {
@@ -674,14 +813,14 @@ export function ChampagneStudio() {
       takeId: revision.id,
       exportReady: true,
       requiresUserAction: true,
-      summary: `Take ${revision.label} is ready. The user must click Download in Champagne.`,
+      summary: `${revision.displayName} is ready. The user must click Download in Champagne.`,
     };
   }, [addReceipt, bumpStateVersion, currentTime, markWebMCP, startPlayback]);
 
   const getStudioState = useCallback(() => {
     const snapshot = runtimeRef.current;
     if (!snapshot.track) {
-      return { ok: true, stateVersion: stateVersionRef.current, status: 'empty', takeCount: 0, availableActions: ['load_track_in_ui'], privacy: { audioShared: false } };
+      return { ok: true, stateVersion: stateVersionRef.current, status: 'empty', styleCount: 0, availableActions: ['load_track_in_ui'], privacy: { audioShared: false } };
     }
     return {
       ok: true,
@@ -692,8 +831,8 @@ export function ChampagneStudio() {
         sampleRate: snapshot.track.analysis.sampleRate,
         channels: snapshot.track.analysis.channels,
       },
-      activeTakeId: snapshot.activeRevisionId,
-      takes: snapshot.revisions.map((revision) => ({ id: revision.id, label: revision.label, style: revision.style, parentId: revision.parentId })),
+      activeStyleId: snapshot.activeRevisionId,
+      styles: snapshot.revisions.map((revision) => ({ id: revision.id, name: revision.displayName, baseline: revision.style, parentId: revision.parentId })),
       availableActions: snapshot.revisions.length
         ? ['create_mastering_take', 'refine_mastering_take', 'create_variations', 'stage_comparison', 'set_trim_fades', 'commit_master']
         : ['analyze_track', 'create_mastering_take', 'create_variations', 'set_trim_fades'],
@@ -769,12 +908,6 @@ export function ChampagneStudio() {
     }
   }, [currentTime, startPlayback]);
 
-  const updateLoudnessMatch = useCallback((checked: boolean) => {
-    setLoudnessMatched(checked);
-    runtimeRef.current.loudnessMatched = checked;
-    if (playbackRef.current) void startPlayback(currentTime);
-  }, [currentTime, startPlayback]);
-
   const handleTrimChange = useCallback((next: TrimSettings) => {
     setTrim(next);
     setExportReadyId(null);
@@ -789,8 +922,20 @@ export function ChampagneStudio() {
     const value = brief.trim();
     if (!track || !value || renderBusyRef.current) return;
     const interpreted = interpretBrief(value, Boolean(activeRevisionId));
+    const explicitlyNamedSignature = Object.values(STYLE_RECIPES).some((recipe) => (
+      value.toLowerCase().includes(recipe.name.toLowerCase())
+    ));
+    const recognized = interpreted.matchedDirections.length > 0
+      || Object.values(interpreted.modifiers).some((modifier) => Math.abs(modifier) > 0.001)
+      || explicitlyNamedSignature
+      || interpreted.mode === 'variations';
+    if (!recognized) {
+      setIntentDisplay(null);
+      setNotice('Champagne could not translate that into a supported mastering direction yet. Try describing warmth, impact, dynamics, width, low end, clarity, density, or smoothness.');
+      return;
+    }
     setIntentDisplay(interpreted);
-    addReceipt({ creator: 'brief', title: 'Brief understood', detail: interpreted.mode === 'variations' ? 'Three contrasting directions' : `${STYLE_RECIPES[interpreted.style].name} · bounded semantic plan` });
+    addReceipt({ creator: 'brief', title: 'Brief understood', detail: interpreted.mode === 'variations' ? 'Three contrasting directions' : `${interpreted.customName} · ${STYLE_RECIPES[interpreted.style].name} baseline` });
     const expectedStateVersion = stateVersionRef.current;
     if (interpreted.mode === 'variations') {
       await createVariationsCommand({
@@ -801,13 +946,21 @@ export function ChampagneStudio() {
         prompt: value,
       });
     } else if (interpreted.mode === 'refine' && interpreted.refinement && activeRevisionId) {
-      const direction = interpreted.refinement.delta >= 0 ? 'increase' : 'decrease';
-      await refineTakeCommand({
+      const source = runtimeRef.current.revisions.find((revision) => revision.id === activeRevisionId);
+      if (!source) return;
+      const mergedModifiers = { ...source.intent.modifiers };
+      for (const key of Object.keys(mergedModifiers) as Array<keyof MasteringModifiers>) {
+        mergedModifiers[key] = clamp(mergedModifiers[key] + interpreted.modifiers[key], -1, 1);
+      }
+      await createTakeCommand({
         expectedStateVersion,
-        sourceTakeId: activeRevisionId,
-        dimension: interpreted.refinement.dimension,
-        direction,
-        amount: Math.abs(interpreted.refinement.delta) > 0.35 ? 'medium' : 'small',
+        baseStyle: source.style,
+        priorities: [...new Set([...source.intent.priorities, ...interpreted.priorities])],
+        constraints: [...new Set([...source.intent.constraints, ...interpreted.constraints])],
+        modifiers: mergedModifiers,
+        customName: `${source.displayName} · ${interpreted.refinement.label}`,
+        matchedDirections: [...new Set([...source.intent.matchedDirections, ...interpreted.matchedDirections])],
+        parentId: source.id,
         creator: 'brief',
         prompt: value,
       });
@@ -818,15 +971,19 @@ export function ChampagneStudio() {
         priorities: interpreted.priorities,
         constraints: interpreted.constraints,
         modifiers: interpreted.modifiers,
+        customName: interpreted.customName,
+        matchedDirections: interpreted.matchedDirections,
         creator: 'brief',
         prompt: value,
       });
     }
     setBrief('');
-  }, [activeRevisionId, addReceipt, brief, createTakeCommand, createVariationsCommand, refineTakeCommand, track]);
+  }, [activeRevisionId, addReceipt, brief, createTakeCommand, createVariationsCommand, track]);
 
   const handleStyle = useCallback((style: StyleId) => {
-    const existing = [...runtimeRef.current.revisions].reverse().find((revision) => revision.style === style && !revision.parentId);
+    const existing = [...runtimeRef.current.revisions].reverse().find((revision) => (
+      revision.style === style && revision.displayName === STYLE_RECIPES[style].name
+    ));
     if (existing) {
       selectRevision(existing.id);
       return;
@@ -841,6 +998,58 @@ export function ChampagneStudio() {
     });
   }, [createTakeCommand, selectRevision]);
 
+  const handleUserPreset = useCallback((preset: UserPreset) => {
+    const existing = [...runtimeRef.current.revisions].reverse().find((revision) => (
+      revision.displayName === preset.name
+      && revision.style === preset.baseStyle
+      && Object.keys(preset.modifiers).every((key) => (
+        revision.intent.modifiers[key as keyof MasteringModifiers] === preset.modifiers[key as keyof MasteringModifiers]
+      ))
+    ));
+    if (existing) {
+      selectRevision(existing.id);
+      return;
+    }
+    void createTakeCommand({
+      expectedStateVersion: stateVersionRef.current,
+      baseStyle: preset.baseStyle,
+      priorities: preset.priorities,
+      constraints: preset.constraints,
+      modifiers: preset.modifiers,
+      customName: preset.name,
+      matchedDirections: [preset.name],
+      creator: 'manual',
+      prompt: `Loaded user preset: ${preset.name}`,
+    });
+  }, [createTakeCommand, selectRevision]);
+
+  const returnHome = useCallback(() => {
+    stopPlayback(false);
+    bumpStateVersion();
+    setTrack(null);
+    setPhase('empty');
+    setRevisions([]);
+    setActiveRevisionId(null);
+    setMonitorMastered(false);
+    setComparisonIds([]);
+    setExportReadyId(null);
+    setCurrentTime(0);
+    setBrief('');
+    setIntentDisplay(null);
+    setRenderProgress(0);
+    setRenderStatus('');
+    setNotice(null);
+    setActivity([]);
+    setTrim({
+      startSeconds: 0,
+      endSeconds: 0,
+      fadeInSeconds: 0,
+      fadeOutSeconds: 0,
+      fadeInCurve: 1 / 3,
+      fadeOutCurve: 1 / 3,
+    });
+  }, [bumpStateVersion, stopPlayback]);
+
   const handleDownload = useCallback(async () => {
     const revision = runtimeRef.current.revisions.find((candidate) => candidate.id === exportReadyId);
     const sourceTrack = runtimeRef.current.track;
@@ -852,10 +1061,10 @@ export function ChampagneStudio() {
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement('a');
       anchor.href = url;
-      anchor.download = safeDownloadName(sourceTrack.name, revision.style);
+      anchor.download = safeDownloadName(sourceTrack.name, revision.displayName);
       anchor.click();
       setTimeout(() => URL.revokeObjectURL(url), 30_000);
-      addReceipt({ creator: 'manual', title: 'Master downloaded', detail: `Take ${revision.label} · 24-bit / 48 kHz WAV`, revisionId: revision.id });
+      addReceipt({ creator: 'manual', title: 'Master downloaded', detail: `${revision.displayName} · 24-bit / 48 kHz WAV`, revisionId: revision.id });
     } catch {
       setNotice('Champagne could not prepare the WAV download.');
     } finally {
@@ -863,21 +1072,15 @@ export function ChampagneStudio() {
     }
   }, [addReceipt, exportReadyId]);
 
-  const suggestions = useMemo(() => {
-    if (!revisions.length) return ['Make it club-loud, but keep the kick punchy.', 'Warm and intimate without getting muddy.', 'Create three directions: warm, open, and club-loud.'];
-    if (revisions.length === 1) return ['A little less bright.', 'Back off the intensity.', 'Make an alternate with more warmth.'];
-    return ['Create three contrasting directions.', 'A little less bright.', 'Keep it dynamic and control only the stray peaks.'];
-  }, [revisions.length]);
-
   const agentPayload = useMemo(() => ({
-    project: track ? { status: phase, stateVersion, durationSeconds: round(track.analysis.durationSeconds, 2), activeTakeId: activeRevisionId, takeCount: revisions.length } : { status: 'empty', stateVersion },
+    project: track ? { status: phase, stateVersion, durationSeconds: round(track.analysis.durationSeconds, 2), activeStyleId: activeRevisionId, styleCount: revisions.length } : { status: 'empty', stateVersion },
     analysis: track ? {
       samplePeakDbfs: round(track.analysis.samplePeakDbfs, 2),
       rmsDbfs: round(track.analysis.rmsDbfs, 2),
       crestFactorDb: round(track.analysis.crestFactorDb, 2),
       flags: track.analysis.flags,
     } : null,
-    capabilities: { styles: STYLE_IDS, actions: ['analyze', 'create take', 'refine', 'compare', 'trim/fades', 'stage export'] },
+    capabilities: { styles: STYLE_IDS, actions: ['analyze', 'create style', 'refine', 'compare', 'trim/fades', 'stage export'] },
     excluded: ['audio bytes', 'waveform samples', 'filename', 'local path'],
   }), [activeRevisionId, phase, revisions.length, stateVersion, track]);
 
@@ -916,20 +1119,9 @@ export function ChampagneStudio() {
           </span>
         </button>
 
-        <div className="header-statuses">
-          <button className={`connection-beacon ${webmcpInvoked && !agentPaused ? 'is-live' : ''}`} type="button" onClick={() => setAgentPanelOpen(true)}>
-            {webmcpAvailable ? <Cable /> : <WifiOff />}
-            <span>{connectionLabel}</span>
-            <span className="connection-dot" />
-          </button>
-          <button className="privacy-pill" type="button" onClick={() => setAgentPanelOpen(true)}>
-            <LockKeyhole /> Audio stays here
-          </button>
-        </div>
-
         <div className="header-actions">
           {track && (
-            <Button className="subtle-button header-new-track" variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
+            <Button className="subtle-button header-new-track" variant="outline" size="sm" onClick={returnHome}>
               <Plus /> New track
             </Button>
           )}
@@ -974,21 +1166,21 @@ export function ChampagneStudio() {
             ) : (
               <>
                 <span className="drop-icon"><Upload /></span>
-                <p className="eyebrow text-gold">LOCAL-FIRST MASTERING</p>
-                <h1>Drop a track. Describe the finish.</h1>
-                <p className="empty-copy">AI directs. Champagne’s deterministic engine masters. Hear every change, compare every take, and keep the audio on your device.</p>
+                <p className="eyebrow text-gold">AGENTIC MUSIC MASTERING</p>
+                <h1>Your sound just leveled up.<br /><span>Discover audio in a new dimension.</span></h1>
+                <p className="empty-copy">AI guides the physics behind Champagne&apos;s mastering engine. Clock every take, compare original and mastered versions, download your finished product.</p>
                 <div className="empty-actions">
                   <Button className="gold-primary" size="lg" onClick={() => fileInputRef.current?.click()}><Music2 /> Choose audio file</Button>
-                  <Button className="demo-button" variant="outline" size="lg" onClick={() => void loadDemo()}><Play /> Try the demo loop</Button>
+                  <Button className="demo-button" variant="outline" size="lg" onClick={() => void loadDemo()}><Play /> Demo</Button>
                 </div>
                 <p className="format-copy">WAV · AIFF · MP3 · M4A · FLAC</p>
               </>
             )}
           </div>
           <div className="empty-proof-row">
-            <div><ShieldCheck /><span><strong>No upload</strong><small>PCM never leaves the browser</small></span></div>
-            <div><GitBranch /><span><strong>Every take is reversible</strong><small>Agent edits branch, never overwrite</small></span></div>
-            <div><Headphones /><span><strong>Hear before export</strong><small>A/B/C while the music keeps moving</small></span></div>
+            <div><LockKeyhole /><span><strong>Privacy</strong><small>Song stays local on your device.</small></span></div>
+            <div><ShieldCheck /><span><strong>Data Protection</strong><small>Songs are never overwritten, new files are created.</small></span></div>
+            <div><Headphones /><span><strong>Quality Control</strong><small>Hear edits in real time.</small></span></div>
           </div>
           {notice && <div className="notice-banner"><Info />{notice}<button onClick={() => setNotice(null)} aria-label="Dismiss"><X /></button></div>}
         </section>
@@ -1004,17 +1196,13 @@ export function ChampagneStudio() {
                     <small>{formatTime(track.buffer.duration)} · {Math.round(track.buffer.sampleRate / 100) / 10} kHz · {track.buffer.numberOfChannels === 1 ? 'Mono' : 'Stereo'}</small>
                   </span>
                 </div>
-                <div className="track-analysis">
-                  <span><small>PEAK</small><strong>{track.analysis.samplePeakDbfs.toFixed(1)} <i>dBFS</i></strong></span>
-                  <span><small>CREST</small><strong>{track.analysis.crestFactorDb.toFixed(1)} <i>dB</i></strong></span>
-                </div>
               </div>
 
               <div className="waveform-workspace">
                 <div className="waveform-meta">
                   <div>
                     <span className={`source-label ${monitorMastered ? 'is-mastered' : ''}`}>
-                      {monitorMastered && activeRevision ? `TAKE ${activeRevision.label} · ${STYLE_RECIPES[activeRevision.style].name}` : 'ORIGINAL'}
+                      {monitorMastered && activeRevision ? activeRevision.displayName.toUpperCase() : 'ORIGINAL'}
                     </span>
                     {activeRevision?.creator === 'webmcp' && <Badge className="agent-origin" variant="outline"><Bot /> ChatGPT</Badge>}
                   </div>
@@ -1030,6 +1218,7 @@ export function ChampagneStudio() {
                     mastered={monitorMastered && Boolean(activeRevision)}
                     onSeek={seekTo}
                     onTrimChange={handleTrimChange}
+                    onEditCommit={commitManualTrim}
                   />
                   {phase === 'rendering' && (
                     <div className="render-overlay">
@@ -1049,8 +1238,7 @@ export function ChampagneStudio() {
                     {isPlaying ? <Pause className="fill-current" /> : <Play className="fill-current" />}
                   </button>
                   <div className="transport-options">
-                    <label><span>Loudness match</span><Switch checked={loudnessMatched} onCheckedChange={updateLoudnessMatch} size="sm" /></label>
-                    <button type="button" onClick={commitManualTrim}><SlidersHorizontal /> Commit edit</button>
+                    <span className="fade-hint"><SlidersHorizontal /> Fades: drag sideways for length · vertically for curve</span>
                   </div>
                 </div>
               </div>
@@ -1074,18 +1262,31 @@ export function ChampagneStudio() {
                   {intentDisplay.mode === 'variations' ? (
                     intentDisplay.styles?.map((style) => <b key={style}>{STYLE_RECIPES[style].name.toUpperCase()}</b>)
                   ) : (
-                    <b>{STYLE_RECIPES[intentDisplay.style].name.toUpperCase()}</b>
+                    <b>{intentDisplay.customName.toUpperCase()}</b>
                   )}
                   {intentDisplay.priorities.slice(0, 3).map((priority) => <span key={priority}>{priority.toUpperCase()} ↑</span>)}
                   {intentDisplay.constraints.slice(0, 2).map((constraint) => <span className="is-locked" key={constraint}><LockKeyhole /> {constraint.toUpperCase()}</span>)}
                 </div>
               )}
 
-              <div className="suggestion-row">
-                {suggestions.map((suggestion) => <button key={suggestion} type="button" onClick={() => setBrief(suggestion)}>{suggestion.replace(/\.$/, '')}</button>)}
-              </div>
+              {!brief && (
+                <button
+                  className="prompt-cycle"
+                  type="button"
+                  onClick={() => {
+                    setBrief(PROMPT_SUGGESTIONS[suggestionIndex]);
+                    requestAnimationFrame(() => briefInputRef.current?.focus());
+                  }}
+                  aria-label={`Use suggestion: ${PROMPT_SUGGESTIONS[suggestionIndex]}`}
+                >
+                  <span>TRY</span>
+                  <b key={suggestionIndex}>{PROMPT_SUGGESTIONS[suggestionIndex]}</b>
+                  <ArrowUp />
+                </button>
+              )}
               <div className="composer">
                 <Textarea
+                  ref={briefInputRef}
                   value={brief}
                   onChange={(event) => setBrief(event.target.value)}
                   onKeyDown={(event) => {
@@ -1094,8 +1295,8 @@ export function ChampagneStudio() {
                       void submitBrief();
                     }
                   }}
-                  className="min-h-[70px] resize-none border-0 bg-transparent px-0 py-0 text-[15px] shadow-none focus-visible:ring-0"
-                  placeholder="Try “Make three directions: warm, open, and club-loud. Preserve the transients.”"
+                  className="min-h-[70px] resize-none border-0 bg-transparent px-1 py-0 font-sans text-[15px] leading-6 shadow-none focus-visible:ring-0"
+                  placeholder="Describe your master…"
                   aria-label="Mastering Brief"
                   disabled={phase === 'rendering'}
                 />
@@ -1109,45 +1310,20 @@ export function ChampagneStudio() {
               </div>
             </div>
 
-            {revisions.length > 0 && (
-              <div className="surface revision-surface">
-                <div className="revision-heading">
-                  <span><GitBranch /> MASTERING TAKES</span>
-                  <div><span>{comparisonIds.length > 1 ? `${comparisonIds.length}-WAY COMPARISON` : 'REVISION GRAPH'}</span><Switch checked={loudnessMatched} onCheckedChange={updateLoudnessMatch} size="sm" /></div>
-                </div>
-                <div className="revision-rail">
-                  <button className={!monitorMastered ? 'revision-card is-active is-original' : 'revision-card is-original'} type="button" onClick={() => selectSource(false)}>
-                    <span className="revision-letter">O</span><span><strong>Original</strong><small>Immutable source</small></span>
-                  </button>
-                  <span className="rail-line" />
-                  {revisions.map((revision) => {
-                    const Icon = styleIcons[revision.style];
-                    const compared = comparisonIds.includes(revision.id);
-                    return (
-                      <button className={`revision-card ${activeRevisionId === revision.id && monitorMastered ? 'is-active' : ''} ${compared ? 'is-compared' : ''}`} key={revision.id} type="button" onClick={() => selectRevision(revision.id)}>
-                        <span className="revision-letter">{revision.label}</span>
-                        <span className="revision-copy"><strong>{STYLE_RECIPES[revision.style].name}</strong><small>{revision.parentId ? 'Child take' : revision.creator === 'webmcp' ? 'ChatGPT take' : revision.creator === 'brief' ? 'Brief take' : 'Manual take'}</small></span>
-                        <Icon className="revision-style-icon" />
-                        {compared && <span className="compare-dot" />}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
             {notice && <div className="notice-banner"><Info />{notice}<button onClick={() => setNotice(null)} aria-label="Dismiss"><X /></button></div>}
           </section>
 
           <aside className="studio-sidebar">
             <div className="surface sidebar-card styles-card">
-              <div className="sidebar-heading"><span>MASTERING STYLE</span><small>FOUR SIGNATURES</small></div>
+              <div className="sidebar-heading"><span>SIGNATURE STYLES</span><small>FOUR BASELINES</small></div>
               <div className="styles-list">
                 {STYLE_IDS.map((style) => {
                   const recipe = STYLE_RECIPES[style];
                   const Icon = styleIcons[style];
-                  const readyRevision = [...revisions].reverse().find((revision) => revision.style === style && !revision.parentId);
-                  const selected = activeRevision?.style === style && monitorMastered;
+                  const readyRevision = [...revisions].reverse().find((revision) => (
+                    revision.style === style && revision.displayName === recipe.name
+                  ));
+                  const selected = activeRevision?.id === readyRevision?.id && monitorMastered;
                   return (
                     <button className={`style-row ${selected ? 'is-selected' : ''}`} key={style} type="button" disabled={phase === 'rendering'} onClick={() => handleStyle(style)}>
                       <span className="style-glyph"><Icon /></span>
@@ -1156,28 +1332,50 @@ export function ChampagneStudio() {
                     </button>
                   );
                 })}
+                {userPresets.length > 0 && (
+                  <>
+                    <div className="preset-divider"><span>USER PRESETS</span><small>SAVED ON THIS DEVICE</small></div>
+                    {userPresets.map((preset) => {
+                      const rendered = [...revisions].reverse().find((revision) => (
+                        revision.displayName === preset.name
+                        && revision.style === preset.baseStyle
+                        && Object.keys(preset.modifiers).every((key) => (
+                          revision.intent.modifiers[key as keyof MasteringModifiers] === preset.modifiers[key as keyof MasteringModifiers]
+                        ))
+                      ));
+                      const selected = activeRevision?.id === rendered?.id && monitorMastered;
+                      return (
+                        <button className={`style-row preset-row ${selected ? 'is-selected' : ''}`} key={preset.id} type="button" disabled={phase === 'rendering'} onClick={() => handleUserPreset(preset)}>
+                          <span className="style-glyph"><WandSparkles /></span>
+                          <span className="min-w-0 flex-1 text-left"><strong>{preset.name}</strong><small>{STYLE_RECIPES[preset.baseStyle].name} baseline · Custom</small></span>
+                          {rendered ? <span className="ready-mark"><Check /></span> : <ChevronRight className="style-chevron" />}
+                        </button>
+                      );
+                    })}
+                  </>
+                )}
               </div>
             </div>
 
             <div className="surface sidebar-card change-card">
               <div className="sidebar-heading">
-                <span>{activeRevision ? 'CHANGE SET' : 'LOCAL ANALYSIS'}</span>
-                {activeRevision ? <Badge className="take-badge" variant="outline">TAKE {activeRevision.label}</Badge> : <Badge className="analysis-badge" variant="outline">READY</Badge>}
+                <span>{activeRevision ? 'CURRENT STYLE' : 'READY TO MASTER'}</span>
+                {activeRevision ? (
+                  <Badge className="take-badge" variant="outline">
+                    {activeRevision.displayName === STYLE_RECIPES[activeRevision.style].name ? 'SIGNATURE' : 'CUSTOM'}
+                  </Badge>
+                ) : <Badge className="analysis-badge" variant="outline">READY</Badge>}
               </div>
               {activeRevision ? (
                 <>
                   <div className="change-origin">
                     <span className={`origin-icon ${activeRevision.creator === 'webmcp' ? 'is-agent' : ''}`}>{activeRevision.creator === 'webmcp' ? <Bot /> : activeRevision.creator === 'brief' ? <WandSparkles /> : <SlidersHorizontal />}</span>
-                    <span><strong>{activeRevision.creator === 'webmcp' ? 'Directed by ChatGPT' : activeRevision.creator === 'brief' ? 'Created from your brief' : 'Selected manually'}</strong><small>{activeRevision.prompt}</small></span>
+                    <span><strong>{activeRevision.displayName}</strong><small>{activeRevision.creator === 'webmcp' ? 'Directed by ChatGPT' : activeRevision.creator === 'brief' ? 'Created from your brief' : 'Selected manually'} · {activeRevision.prompt}</small></span>
                   </div>
                   <div className="change-list">
-                    <div><span>Base style</span><strong>{STYLE_RECIPES[activeRevision.style].name}</strong></div>
-                    <div><span>Priorities</span><strong>{activeRevision.intent.priorities.join(' + ') || 'Balanced'}</strong></div>
-                    <div><span>Constraints</span><strong>{activeRevision.intent.constraints.join(' + ') || 'Champagne safeguards'}</strong></div>
-                  </div>
-                  <div className="metric-strip">
-                    <div><span>TARGET</span><strong>{STYLE_RECIPES[activeRevision.style].targetLufs.toFixed(1)}</strong><small>LUFS</small></div>
-                    <div><span>CEILING</span><strong>{STYLE_RECIPES[activeRevision.style].ceilingDbtp.toFixed(1)}</strong><small>dBTP</small></div>
+                    <div><span>Starting point</span><strong>{STYLE_RECIPES[activeRevision.style].name}</strong></div>
+                    <div><span>Direction</span><strong>{activeRevision.intent.priorities.join(' + ') || 'Balanced'}</strong></div>
+                    <div><span>Safeguards</span><strong>{activeRevision.intent.constraints.join(' + ') || 'Champagne defaults'}</strong></div>
                   </div>
                   <p className="take-summary">{activeRevision.summary}</p>
                   <div className="quick-refine">
@@ -1187,16 +1385,11 @@ export function ChampagneStudio() {
                   </div>
                 </>
               ) : (
-                <>
-                  <div className="analysis-grid">
-                    <div><span>SAMPLE PEAK</span><strong>{track.analysis.samplePeakDbfs.toFixed(1)}</strong><small>dBFS</small></div>
-                    <div><span>RMS LEVEL</span><strong>{track.analysis.rmsDbfs.toFixed(1)}</strong><small>dBFS</small></div>
-                    <div><span>CREST FACTOR</span><strong>{track.analysis.crestFactorDb.toFixed(1)}</strong><small>dB</small></div>
-                    <div><span>HEADROOM</span><strong>{track.analysis.headroomDb.toFixed(1)}</strong><small>dB</small></div>
-                  </div>
-                  <div className="analysis-flags">{track.analysis.flags.map((flag) => <span key={flag}><Check />{flag.replaceAll('_', ' ')}</span>)}</div>
-                  <p className="take-summary">Choose a signature or write a Mastering Brief. Champagne will render an audible, reversible take.</p>
-                </>
+                <div className="ready-direction">
+                  <span><WandSparkles /></span>
+                  <strong>Choose a signature or describe the sound you want.</strong>
+                  <small>Champagne will build an audible custom style and add it to User Presets.</small>
+                </div>
               )}
             </div>
 
@@ -1240,7 +1433,7 @@ export function ChampagneStudio() {
           <div className="agent-sheet-scroll">
             <section className="sheet-section">
               <div className="sheet-section-heading"><span>SESSION CONTROL</span><Switch checked={!agentPaused} onCheckedChange={(checked) => setAgentPaused(!checked)} /></div>
-              <p>Allow ChatGPT to analyze, create previews, refine takes, stage comparisons, and edit trim/fades. Download always requires your click.</p>
+              <p>Allow ChatGPT to analyze, create custom styles, refine the selected style, compare options, and edit trim/fades. Download always requires your click.</p>
             </section>
             <section className="sheet-section">
               <div className="sheet-section-heading"><span>TRY THIS IN CHATGPT</span><Cable /></div>
@@ -1248,7 +1441,7 @@ export function ChampagneStudio() {
               <ol>
                 <li><b>1</b><span>Load a track here. Audio stays local.</span></li>
                 <li><b>2</b><span>Ask ChatGPT from beside this page.</span></li>
-                <li><b>3</b><span>Watch each audible take appear in the studio.</span></li>
+                <li><b>3</b><span>Watch each audible custom style appear in User Presets.</span></li>
               </ol>
             </section>
             <section className="sheet-section">
@@ -1259,7 +1452,7 @@ export function ChampagneStudio() {
             <section className="sheet-section">
               <div className="sheet-section-heading"><span>AVAILABLE ACTIONS</span><Activity /></div>
               <div className="tool-list">
-                {['Read studio state', 'Analyze track locally', 'Create a mastering take', 'Refine a take', 'Create three variations', 'Stage A/B/C', 'Set trim and fades', 'Prepare final master'].map((tool) => <span key={tool}><Check />{tool}</span>)}
+                {['Read studio state', 'Analyze track locally', 'Create a custom style', 'Refine a style', 'Create three directions', 'Stage style options', 'Set trim and fades', 'Prepare final master'].map((tool) => <span key={tool}><Check />{tool}</span>)}
               </div>
             </section>
             {activity.length > 0 && (

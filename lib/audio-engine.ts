@@ -86,63 +86,6 @@ export function makeWaveform(buffer: AudioBuffer, target = 420): number[] {
   return peaks.map((peak) => clamp(peak / max, 0.025, 1));
 }
 
-export function createDemoTrack(): AudioBuffer {
-  const sampleRate = WAV_SAMPLE_RATE;
-  const duration = 18;
-  const length = duration * sampleRate;
-  const buffer = new AudioBuffer({ length, numberOfChannels: 2, sampleRate });
-  const left = buffer.getChannelData(0);
-  const right = buffer.getChannelData(1);
-  let noiseState = 0x9e3779b9;
-  const noise = () => {
-    noiseState ^= noiseState << 13;
-    noiseState ^= noiseState >>> 17;
-    noiseState ^= noiseState << 5;
-    return ((noiseState >>> 0) / 0xffffffff) * 2 - 1;
-  };
-  const bpm = 122;
-  const beat = 60 / bpm;
-  const notes = [55, 55, 65.406, 49, 73.416, 65.406, 55, 49];
-
-  for (let index = 0; index < length; index += 1) {
-    const time = index / sampleRate;
-    const beatIndex = Math.floor(time / beat);
-    const beatPhase = time - beatIndex * beat;
-    const eighth = beat / 2;
-    const eighthIndex = Math.floor(time / eighth);
-    const eighthPhase = time - eighthIndex * eighth;
-
-    const kickEnv = Math.exp(-beatPhase * 18);
-    const kickFreq = 48 + 95 * Math.exp(-beatPhase * 35);
-    const kick = Math.sin(2 * Math.PI * kickFreq * beatPhase) * kickEnv * 0.56;
-
-    const snareBeat = beatIndex % 4 === 1 || beatIndex % 4 === 3;
-    const snareEnv = snareBeat ? Math.exp(-beatPhase * 22) : 0;
-    const snare = noise() * snareEnv * 0.18 + Math.sin(2 * Math.PI * 185 * beatPhase) * snareEnv * 0.08;
-
-    const hatEnv = Math.exp(-eighthPhase * 70);
-    const hat = (noise() - 0.72 * noise()) * hatEnv * (eighthIndex % 2 ? 0.055 : 0.035);
-
-    const note = notes[Math.floor(time / (beat * 2)) % notes.length];
-    const bassPhase = time % (beat * 2);
-    const bassEnv = Math.min(1, bassPhase * 50) * Math.exp(-bassPhase * 1.6);
-    const bass = (Math.sin(2 * Math.PI * note * time) + 0.22 * Math.sin(4 * Math.PI * note * time)) * bassEnv * 0.18;
-
-    const chordPhase = time * 0.25;
-    const pad = (
-      Math.sin(2 * Math.PI * 220 * time + Math.sin(time * 0.7) * 0.3) +
-      0.55 * Math.sin(2 * Math.PI * 277.18 * time + 0.7) +
-      0.42 * Math.sin(2 * Math.PI * 329.63 * time + 1.3)
-    ) * (0.055 + 0.018 * Math.sin(2 * Math.PI * chordPhase));
-
-    const rise = time > 14 ? noise() * ((time - 14) / 4) * 0.05 : 0;
-    const sample = kick + snare + hat + bass + pad + rise;
-    left[index] = clamp(sample + pad * Math.sin(time * 0.39) * 0.08, -0.94, 0.94);
-    right[index] = clamp(sample - pad * Math.sin(time * 0.43) * 0.09 + hat * 0.12, -0.94, 0.94);
-  }
-  return buffer;
-}
-
 function makeSaturationCurve(amount: number): Float32Array<ArrayBuffer> {
   const length = 16_384;
   const curve = new Float32Array(new ArrayBuffer(length * Float32Array.BYTES_PER_ELEMENT));
@@ -176,35 +119,62 @@ export async function renderMasteringTake(
   const lowShelf = offline.createBiquadFilter();
   lowShelf.type = 'lowshelf';
   lowShelf.frequency.value = 95;
-  lowShelf.gain.value = clamp(recipe.lowColorDb + modifiers.warmth * 1.6, -1.5, 2.25);
+  lowShelf.gain.value = clamp(
+    recipe.lowColorDb + modifiers.warmth * 1.25 + modifiers.lowEnd * 1.8,
+    -2.2,
+    3,
+  );
 
   const mud = offline.createBiquadFilter();
   mud.type = 'peaking';
   mud.frequency.value = 310;
   mud.Q.value = 0.82;
-  mud.gain.value = clamp(-modifiers.warmth * 0.3, -0.8, 0.4);
+  mud.gain.value = clamp(-modifiers.warmth * 0.3 - Math.max(0, modifiers.lowEnd) * 0.18, -1.1, 0.5);
 
   const presence = offline.createBiquadFilter();
   presence.type = 'peaking';
   presence.frequency.value = 2_300;
   presence.Q.value = 0.9;
-  presence.gain.value = clamp(recipe.presenceDb + modifiers.brightness * 0.65, -0.4, 1.6);
+  presence.gain.value = clamp(
+    recipe.presenceDb + modifiers.brightness * 0.55 + modifiers.presence * 1.35,
+    -1.2,
+    2.2,
+  );
 
   const air = offline.createBiquadFilter();
   air.type = 'highshelf';
   air.frequency.value = 11_500;
-  air.gain.value = clamp(recipe.airColorDb + modifiers.brightness * 1.75, -1.6, 2.1);
+  air.gain.value = clamp(
+    recipe.airColorDb + modifiers.brightness * 1.25 + modifiers.air * 1.7 - modifiers.smoothness * 1.1,
+    -2.4,
+    2.8,
+  );
+
+  const deHarsh = offline.createBiquadFilter();
+  deHarsh.type = 'peaking';
+  deHarsh.frequency.value = 6_200;
+  deHarsh.Q.value = 0.78;
+  deHarsh.gain.value = clamp(-modifiers.smoothness * 1.7, -2.2, 0.5);
 
   const compressor = offline.createDynamicsCompressor();
-  const compressionScale = clamp(1 + modifiers.intensity * 0.5 - modifiers.dynamics * 0.55 - modifiers.punch * 0.25, 0.45, 1.35);
-  compressor.threshold.value = -18 - recipe.compression * 6 * compressionScale;
+  const compressionScale = clamp(
+    1 + modifiers.intensity * 0.42 + modifiers.glue * 0.34 + modifiers.density * 0.25
+      - modifiers.dynamics * 0.58 - modifiers.punch * 0.24,
+    0.38,
+    1.5,
+  );
+  compressor.threshold.value = -18 - recipe.compression * 6 * compressionScale - modifiers.density * 1.8;
   compressor.knee.value = 6;
   compressor.ratio.value = 1 + recipe.compression * 2.1 * compressionScale;
   compressor.attack.value = clamp(0.018 + modifiers.punch * 0.018, 0.008, 0.055);
   compressor.release.value = 0.15;
 
   const saturation = offline.createWaveShaper();
-  saturation.curve = makeSaturationCurve(clamp(recipe.midDrive + modifiers.warmth * 0.08, 0.04, 0.42));
+  saturation.curve = makeSaturationCurve(clamp(
+    recipe.midDrive + modifiers.warmth * 0.1 + modifiers.density * 0.13,
+    0.025,
+    0.52,
+  ));
   saturation.oversample = '2x';
 
   source.connect(highPass);
@@ -212,7 +182,8 @@ export async function renderMasteringTake(
   lowShelf.connect(mud);
   mud.connect(presence);
   presence.connect(air);
-  air.connect(compressor);
+  air.connect(deHarsh);
+  deHarsh.connect(compressor);
   compressor.connect(saturation);
   saturation.connect(offline.destination);
   source.start();
@@ -242,7 +213,7 @@ function finalizeMaster(
     const right = input.getChannelData(1);
     const outLeft = prepared[0];
     const outRight = prepared[1];
-    const safeWidth = clamp(width + modifiers.brightness * 0.03, 0.94, 1.18);
+    const safeWidth = clamp(width + modifiers.width * 0.18 + modifiers.brightness * 0.02, 0.82, 1.26);
     for (let index = 0; index < input.length; index += 1) {
       const mid = (left[index] + right[index]) * 0.5;
       const side = (left[index] - right[index]) * 0.5 * safeWidth;
@@ -258,7 +229,7 @@ function finalizeMaster(
     for (let index = 0; index < channel.length; index += 1) energy += channel[index] * channel[index];
   }
   const rms = Math.sqrt(energy / Math.max(1, input.length * channels));
-  const target = targetLufs + modifiers.intensity * 2.2 - modifiers.dynamics * 0.65;
+  const target = targetLufs + modifiers.intensity * 2.2 + modifiers.density * 0.45 - modifiers.dynamics * 0.72;
   const makeupDb = clamp(target - gainToDb(rms), -5, 12);
   const makeup = dbToGain(makeupDb);
   const ceiling = dbToGain(ceilingDbtp);
@@ -314,9 +285,11 @@ function writeAscii(view: DataView, offset: number, value: string): void {
   for (let index = 0; index < value.length; index += 1) view.setUint8(offset + index, value.charCodeAt(index));
 }
 
-function parabolicFadeGain(normalizedDistance: number): number {
+export function parabolicFadeGain(normalizedDistance: number, curvature = 1 / 3): number {
   const x = clamp(normalizedDistance, 0, 1);
-  return (x * (4 - x)) / 3;
+  const bend = clamp(Number.isFinite(curvature) ? curvature : 1 / 3, -1, 1);
+  if (Math.abs(bend - 1 / 3) < 1e-9) return (x * (4 - x)) / 3;
+  return clamp(x + bend * x * (1 - x), 0, 1);
 }
 
 export async function encodeMasterWav24(
@@ -361,9 +334,9 @@ export async function encodeMasterWav24(
   for (let frame = 0; frame < frames; frame += 1) {
     let fadeGain = 1;
     if (fadeInFrames > 1 && frame < fadeInFrames) {
-      fadeGain = parabolicFadeGain(frame / (fadeInFrames - 1));
+      fadeGain = parabolicFadeGain(frame / (fadeInFrames - 1), trim.fadeInCurve);
     } else if (fadeOutFrames > 1 && frame >= frames - fadeOutFrames) {
-      fadeGain = parabolicFadeGain((frames - 1 - frame) / (fadeOutFrames - 1));
+      fadeGain = parabolicFadeGain((frames - 1 - frame) / (fadeOutFrames - 1), trim.fadeOutCurve);
     }
 
     for (let channel = 0; channel < channels; channel += 1) {
