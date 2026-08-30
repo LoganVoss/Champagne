@@ -1,0 +1,28 @@
+# macOS / Xcode
+.DS_Store
+DerivedData/
+build/
+*.xcuserstate
+xcuserdata/
+
+# Browser build and local runtime output
+apps/web/node_modules/
+apps/web/dist/
+apps/web/.next/
+apps/web/.vinext/
+apps/web/.wrangler/
+apps/web/next-env.d.ts
+apps/web/tsconfig.tsbuildinfo
+apps/web/.git/
+
+# Local credentials and challenge-plugin state
+.env
+.env.*
+!.env.example
+.devpost-hackathon-state.json
+
+# Design/export scratch (the tracked app assets live in Champagne/Assets.xcassets)
+GenIcon - macOS/
+GenIcon - macOS 2/
+work/
+outputs/
