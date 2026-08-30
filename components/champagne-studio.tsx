@@ -1270,7 +1270,7 @@ export function ChampagneStudio() {
                       void submitBrief();
                     }
                   }}
-                  className="min-h-[70px] resize-none border-0 bg-transparent px-1 py-0 font-sans text-[15px] leading-6 shadow-none focus-visible:ring-0"
+                  className="min-h-[76px] resize-none border-0 bg-transparent px-10 py-5 text-center font-sans text-[18px] leading-7 shadow-none focus-visible:ring-0"
                   placeholder=""
                   aria-label="Mastering Magic"
                   disabled={phase === 'rendering'}

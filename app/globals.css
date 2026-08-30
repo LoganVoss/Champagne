@@ -237,9 +237,9 @@ button { cursor: pointer; }
 .brief-header { position: relative; z-index: 1; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .brief-header > div > span:last-child { display: flex; flex-direction: column; }
 .brief-header strong { color: rgba(255,255,255,.82); font-size: 12px; font-weight: 650; }
-.brief-surface .composer { margin-top: 8px; padding: 11px 11px 9px 13px; }
-.brief-surface .composer textarea { min-height: 58px; overflow: visible; font-family: var(--font-geist-sans), Arial, sans-serif; letter-spacing: -.01em; }
-.composer-suggestion { position: absolute; top: 13px; right: 52px; left: 15px; overflow: hidden; pointer-events: none; color: rgba(255,255,255,.31); font-family: var(--font-geist-sans), Arial, sans-serif; font-size: 15px; line-height: 1.5; text-overflow: ellipsis; white-space: nowrap; }
+.brief-surface .composer { min-height: 96px; align-items: center; margin-top: 8px; padding: 10px 11px 10px 13px; }
+.brief-surface .composer textarea { min-height: 76px; overflow: visible; padding: 20px 42px; color: rgba(255,255,255,.9); font-family: var(--font-geist-sans), Arial, sans-serif; font-size: clamp(17px,1.45vw,20px); font-weight: 520; line-height: 1.4; letter-spacing: -.025em; text-align: center; }
+.composer-suggestion { position: absolute; inset: 0 52px 0 18px; display: flex; align-items: center; justify-content: center; overflow: hidden; pointer-events: none; color: rgba(255,255,255,.37); font-family: var(--font-geist-sans), Arial, sans-serif; font-size: clamp(17px,1.45vw,20px); font-weight: 520; line-height: 1.35; letter-spacing: -.025em; text-align: center; text-wrap: balance; }
 
 .studio-sidebar { display: flex; min-width: 0; flex-direction: column; gap: 14px; }
 .sidebar-card { padding: 14px; }
