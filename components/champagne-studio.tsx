@@ -919,18 +919,7 @@ export function ChampagneStudio() {
     const value = brief.trim();
     if (!track || !value || renderBusyRef.current) return;
     const interpreted = interpretBrief(value, Boolean(activeRevisionId));
-    const explicitlyNamedSignature = Object.values(STYLE_RECIPES).some((recipe) => (
-      value.toLowerCase().includes(recipe.name.toLowerCase())
-    ));
-    const recognized = interpreted.matchedDirections.length > 0
-      || Object.values(interpreted.modifiers).some((modifier) => Math.abs(modifier) > 0.001)
-      || explicitlyNamedSignature
-      || interpreted.mode === 'variations';
-    if (!recognized) {
-      setIntentDisplay(null);
-      setNotice('Champagne could not translate that into a supported mastering direction yet. Try describing warmth, impact, dynamics, width, low end, clarity, density, or smoothness.');
-      return;
-    }
+    setNotice(null);
     setIntentDisplay(interpreted);
     addReceipt({ creator: 'brief', title: 'Direction understood', detail: interpreted.mode === 'variations' ? 'Three contrasting directions' : `${interpreted.customName} · ${STYLE_RECIPES[interpreted.style].name} baseline` });
     const expectedStateVersion = stateVersionRef.current;

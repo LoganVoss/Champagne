@@ -19,7 +19,7 @@ The four Champagne signatures are safe engine baselines, not the limit of the pr
 - low end, presence, air, and width
 - glue, density, and smoothness
 
-Each successful direction creates a descriptively named custom style and saves its metadata in **User Presets** on that device. Audio buffers are never persisted with the preset. Unknown language is rejected with useful guidance instead of silently falling back to an unchanged signature.
+Each direction creates a descriptively named custom style and saves its metadata in **User Presets** on that device. Audio buffers are never persisted with the preset. Champagne extracts every supported signal from the message; unfamiliar or metaphorical language receives a conservative adaptive finish instead of an error.
 
 ## WebMCP
 

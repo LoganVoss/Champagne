@@ -254,8 +254,8 @@ export interface InterpretedBrief {
 
 const STOP_WORDS = new Set([
   'a', 'an', 'and', 'but', 'can', 'could', 'do', 'for', 'from', 'give', 'i',
-  'it', 'keep', 'make', 'master', 'mastered', 'mastering', 'me', 'more', 'my',
-  'of', 'please', 'sound', 'the', 'this', 'to', 'track', 'version', 'with', 'without',
+  'feel', 'feels', 'it', 'keep', 'like', 'make', 'master', 'mastered', 'mastering', 'me', 'more', 'my',
+  'of', 'please', 'something', 'sound', 'the', 'this', 'to', 'track', 'version', 'with', 'without',
 ]);
 
 function mergeModifiers(...parts: Array<Partial<MasteringModifiers>>): MasteringModifiers {
@@ -284,11 +284,51 @@ function customNameFromPrompt(text: string, matches: DirectionProfile[]): string
 }
 
 export function interpretBrief(text: string, hasActiveStyle: boolean): InterpretedBrief {
-  const value = text.toLowerCase();
-  const matched = DIRECTION_PROFILES.filter((profile) => profile.matches.test(value));
+  const value = text.normalize('NFKC').toLowerCase().replace(/[’]/g, "'").replace(/\s+/g, ' ').trim();
+  const isNegatedAt = (index: number) => {
+    const clause = value
+      .slice(Math.max(0, index - 42), index)
+      .split(/[,.!?;]|\bbut\b|\bexcept\b/i)
+      .at(-1) ?? '';
+    return /\b(?:no|not|never|without|avoid|don't|do not|less)\b(?:\s+\w+){0,3}\s*$/.test(clause);
+  };
+  const positiveMatch = (pattern: RegExp) => {
+    const match = value.match(pattern);
+    return Boolean(match && match.index != null && !isNegatedAt(match.index));
+  };
+  const matchedHits = DIRECTION_PROFILES
+    .map((profile, tableIndex) => {
+      const match = value.match(profile.matches);
+      if (!match || match.index == null || isNegatedAt(match.index)) return null;
+      const score = match[0].trim().split(/\s+/).length * 10 + match[0].length;
+      return { profile, tableIndex, index: match.index, score };
+    })
+    .filter((hit): hit is NonNullable<typeof hit> => Boolean(hit))
+    .sort((left, right) => right.score - left.score || left.index - right.index || left.tableIndex - right.tableIndex)
+    .slice(0, 3);
+  const matched = matchedHits.map((hit) => hit.profile);
+  const weightedProfileModifiers = matched.map((profile, index) => Object.fromEntries(
+    (Object.entries(profile.modifiers) as Array<[keyof MasteringModifiers, number]>).map(([key, amount]) => [
+      key,
+      amount * (index === 0 ? 1 : index === 1 ? .5 : .28),
+    ]),
+  ) as Partial<MasteringModifiers>);
   const priorities = [...new Set(matched.flatMap((profile) => profile.priorities))];
   const constraints = [...new Set(matched.flatMap((profile) => profile.constraints ?? []))];
   const phraseModifiers: Partial<MasteringModifiers> = {};
+  const inferredDirections: string[] = [];
+
+  const addInference = (
+    name: string,
+    changes: Partial<MasteringModifiers>,
+    inferredPriorities: string[] = [],
+  ) => {
+    inferredDirections.push(name);
+    priorities.push(...inferredPriorities);
+    for (const [key, amount] of Object.entries(changes) as Array<[keyof MasteringModifiers, number]>) {
+      phraseModifiers[key] = clamp((phraseModifiers[key] ?? 0) + amount, -1, 1);
+    }
+  };
 
   if (/less bright|darker|softer top/.test(value)) phraseModifiers.brightness = -.35;
   if (/brighter|more air|open the top/.test(value)) phraseModifiers.brightness = .3;
@@ -304,6 +344,37 @@ export function interpretBrief(text: string, hasActiveStyle: boolean): Interpret
   if (/less dense|more open dynamics/.test(value)) phraseModifiers.density = -.3;
   if (/smoother|less harsh/.test(value)) phraseModifiers.smoothness = .35;
 
+  if (positiveMatch(/\b(?:dreamy|ethereal|floating|weightless|atmospheric|otherworldly)\b/)) {
+    addInference('Dreamy Space', { intensity: -.12, air: .3, width: .3, dynamics: .24, smoothness: .18 }, ['space', 'atmosphere']);
+  }
+  if (positiveMatch(/\b(?:alive|lively|more life|vibrant|electric|exciting|energetic)\b/)) {
+    addInference('Live Energy', { intensity: .16, punch: .26, presence: .16, dynamics: .22 }, ['energy', 'movement']);
+  }
+  if (positiveMatch(/\b(?:happy|sunny|uplifting|joyful|bright mood|feel good)\b/)) {
+    addInference('Golden Lift', { brightness: .2, air: .2, punch: .12, width: .1 }, ['lift', 'clarity']);
+  }
+  if (positiveMatch(/\b(?:sad|melancholy|lonely|rainy|rain|heartbreak|somber)\b/)) {
+    addInference('Rainy Depth', { warmth: .18, brightness: -.2, smoothness: .2, dynamics: .18 }, ['depth', 'emotion']);
+  }
+  if (positiveMatch(/\b(?:cold|icy|metallic|chrome|frozen)\b/)) {
+    addInference('Icy Detail', { warmth: -.3, brightness: .28, presence: .2, air: .18 }, ['detail', 'edge']);
+  }
+  if (positiveMatch(/\b(?:raw|gritty|dirty|grimy|crunchy|rough)\b/)) {
+    addInference('Raw Texture', { intensity: .18, density: .28, presence: .18, smoothness: -.2 }, ['texture', 'energy']);
+  }
+  if (positiveMatch(/\b(?:soft|softer|gentle|delicate|tender|calm|relaxed)\b/)) {
+    addInference('Soft Focus', { intensity: -.24, dynamics: .3, smoothness: .28, warmth: .14 }, ['softness', 'restraint']);
+  }
+  if (positiveMatch(/\b(?:vocal|voice|lyrics|singer|front and center)\b/)) {
+    addInference('Center Presence', { presence: .2, width: -.08, smoothness: .08 }, ['presence', 'center focus']);
+  }
+  if (positiveMatch(/\b(?:drums?|kick|snare|percussion|slap|hit)\b/)) {
+    addInference('Rhythmic Impact', { punch: .3, glue: -.08, dynamics: .14 }, ['punch', 'transients']);
+  }
+  if (positiveMatch(/\b(?:lo[- ]?fi|dusty|cassette|worn|washed out)\b/)) {
+    addInference('Lo-Fi Patina', { warmth: .3, brightness: -.32, air: -.25, width: -.12, density: .18 }, ['character', 'warmth']);
+  }
+
   if (/keep|preserve|intact|don.t flatten|without flatten/.test(value) && /kick|drum|punch|transient/.test(value)) {
     constraints.push('preserve transients');
     phraseModifiers.punch = Math.max(.4, phraseModifiers.punch ?? 0);
@@ -312,14 +383,82 @@ export function interpretBrief(text: string, hasActiveStyle: boolean): Interpret
   if (/not harsh|avoid harsh|smooth top|smooth high/.test(value)) constraints.push('avoid harshness');
   if (/dynamic|breathe|don.t crush|not crushed/.test(value)) constraints.push('keep dynamic');
 
-  const style = matched[0]?.baseStyle ?? (
-    /club|dominant|aggressive|huge|hard|loud/.test(value) ? 'dominant' :
-      /warm|intimate|rounded|rich|soft|dark/.test(value) ? 'warm_presence' :
-        /crisp|open|airy|clear|bright|modern|wide/.test(value) ? 'modern_crisp' :
+  if (/\b(?:not|never|avoid|without)\b.{0,28}\b(?:harsh|brittle|shrill|harshness)\b/.test(value)) {
+    phraseModifiers.smoothness = Math.max(.42, phraseModifiers.smoothness ?? 0);
+    phraseModifiers.brightness = Math.min(-.12, phraseModifiers.brightness ?? 0);
+    phraseModifiers.air = Math.min(-.08, phraseModifiers.air ?? 0);
+    constraints.push('avoid harshness');
+  }
+  if (/\b(?:not|never|avoid|without)\b.{0,28}\b(?:muddy|boomy|mud|boom)\b/.test(value)) {
+    phraseModifiers.lowEnd = Math.min(-.22, phraseModifiers.lowEnd ?? 0);
+    phraseModifiers.warmth = Math.min(-.08, phraseModifiers.warmth ?? 0);
+    phraseModifiers.punch = Math.max(.12, phraseModifiers.punch ?? 0);
+    constraints.push('avoid mud');
+  }
+  if (/\b(?:not|never|don't|do not)\b.{0,18}\b(?:crushed|flat)|without flattening\b/.test(value)) {
+    phraseModifiers.dynamics = Math.max(.44, phraseModifiers.dynamics ?? 0);
+    phraseModifiers.density = Math.min(-.2, phraseModifiers.density ?? 0);
+    phraseModifiers.punch = Math.max(.16, phraseModifiers.punch ?? 0);
+    constraints.push('keep dynamic');
+  }
+  if (/\b(?:not|never|don't|do not)\b.{0,18}\b(?:loud|louder|intense|hard)\b/.test(value)) {
+    phraseModifiers.intensity = Math.min(-.34, phraseModifiers.intensity ?? 0);
+    phraseModifiers.dynamics = Math.max(.18, phraseModifiers.dynamics ?? 0);
+  }
+  if (/\b(?:not|never|avoid|without|less)\s+(?:too\s+)?(?:warm|rich|thick)\b/.test(value)) {
+    phraseModifiers.warmth = Math.min(-.3, phraseModifiers.warmth ?? 0);
+  }
+  if (/\b(?:not|never|avoid|without|less)\s+(?:too\s+)?(?:bright|airy|crisp)\b/.test(value)) {
+    phraseModifiers.brightness = Math.min(-.28, phraseModifiers.brightness ?? 0);
+    phraseModifiers.air = Math.min(-.16, phraseModifiers.air ?? 0);
+  }
+  if (/\b(?:no|not|without|less)\s+(?:too\s+)?(?:wide|width)\b/.test(value)) {
+    phraseModifiers.width = Math.min(-.3, phraseModifiers.width ?? 0);
+  }
+  if (/\b(?:no|not|without|less)\s+(?:too\s+)?(?:punch|impact)\b/.test(value)) {
+    phraseModifiers.punch = Math.min(-.24, phraseModifiers.punch ?? 0);
+  }
+
+  const explicitStyle = STYLE_IDS.find((styleId) => value.includes(STYLE_RECIPES[styleId].name.toLowerCase()));
+  let modifiers = mergeModifiers(...weightedProfileModifiers, phraseModifiers);
+  const extractedSignal = matched.length > 0
+    || inferredDirections.length > 0
+    || Object.values(phraseModifiers).some((amount) => Math.abs(amount ?? 0) > .001)
+    || Boolean(explicitStyle);
+  const matchedDirections = [...new Set([
+    ...matched.map((profile) => profile.name),
+    ...inferredDirections,
+    ...(explicitStyle && matched.length === 0 ? [STYLE_RECIPES[explicitStyle].name] : []),
+  ])];
+  if (!extractedSignal) {
+    modifiers = mergeModifiers(modifiers, {
+      intensity: .06,
+      punch: .12,
+      dynamics: .18,
+      glue: .1,
+      smoothness: .08,
+    });
+    matchedDirections.push('Adaptive Finish');
+    priorities.push('balance', 'translation');
+  }
+  const style = explicitStyle ?? matched[0]?.baseStyle ?? (
+    modifiers.intensity > .24 ? 'dominant' :
+      modifiers.warmth + modifiers.smoothness > .32 ? 'warm_presence' :
+        modifiers.brightness + modifiers.air + modifiers.width + modifiers.dynamics > .42 ? 'modern_crisp' :
           'full_power'
   );
-  const modifiers = mergeModifiers(...matched.map((profile) => profile.modifiers), phraseModifiers);
-  const customName = customNameFromPrompt(text, matched);
+  const customName = explicitStyle && matched.length === 0
+    ? STYLE_RECIPES[explicitStyle].name
+    : matched.length > 0
+      ? customNameFromPrompt(text, matched)
+      : inferredDirections.length >= 2
+        ? `${inferredDirections[0]} + ${inferredDirections[1].split(' ').at(-1)}`
+        : inferredDirections.length === 1
+          ? inferredDirections[0]
+          : extractedSignal
+            ? 'Controlled Finish'
+            : customNameFromPrompt(text, matched);
+  const resolvedPriorities = [...new Set(priorities)];
 
   const wantsVariations = /three|3 |versions|options|directions|alternatives/.test(value);
   if (wantsVariations) {
@@ -328,8 +467,8 @@ export function interpretBrief(text: string, hasActiveStyle: boolean): Interpret
       style,
       styles: ['warm_presence', 'modern_crisp', 'dominant'],
       customName: 'Three Directions',
-      matchedDirections: matched.map((profile) => profile.name),
-      priorities: priorities.length ? priorities : ['contrast'],
+      matchedDirections,
+      priorities: resolvedPriorities.length ? resolvedPriorities : ['contrast'],
       constraints: [...new Set(constraints)],
       modifiers,
     };
@@ -356,8 +495,8 @@ export function interpretBrief(text: string, hasActiveStyle: boolean): Interpret
       mode: 'refine',
       style,
       customName,
-      matchedDirections: matched.map((profile) => profile.name),
-      priorities,
+      matchedDirections,
+      priorities: resolvedPriorities,
       constraints: [...new Set(constraints)],
       modifiers,
       refinement: { dimension: refinement[1], delta: refinement[2], label: refinement[3] },
@@ -368,8 +507,8 @@ export function interpretBrief(text: string, hasActiveStyle: boolean): Interpret
     mode: 'create',
     style,
     customName,
-    matchedDirections: matched.map((profile) => profile.name),
-    priorities: priorities.length ? priorities : ['balance', 'release readiness'],
+    matchedDirections,
+    priorities: resolvedPriorities.length ? resolvedPriorities : ['balance', 'release readiness'],
     constraints: [...new Set(constraints)],
     modifiers,
   };
