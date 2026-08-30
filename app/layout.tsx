@@ -13,6 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL('https://champagne-mastering.vossx.chatgpt.site'),
   title: 'Champagne — AI-directed mastering studio',
   description:
     'Direct a professional mastering engine in plain language. Hear every revision, compare versions, and export a release-ready WAV locally.',
