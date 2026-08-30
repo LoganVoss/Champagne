@@ -2,7 +2,6 @@
 
 import {
   Activity,
-  ArrowDownToLine,
   ArrowUp,
   AudioWaveform,
   Bot,
@@ -17,7 +16,6 @@ import {
   Flame,
   Headphones,
   Info,
-  Loader2,
   LockKeyhole,
   Music2,
   Pause,
@@ -31,6 +29,7 @@ import {
   X,
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 
 import { WaveformEditor } from '@/components/waveform-editor';
 import { Badge } from '@/components/ui/badge';
@@ -100,6 +99,31 @@ const styleIcons = {
 } satisfies Record<StyleId, typeof Bolt>;
 
 const afterPaint = () => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+const runViewTransition = async (update: () => void, waitForFinish = false) => {
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const startViewTransition = (document as Document & {
+    startViewTransition?: (callback: () => void) => {
+      updateCallbackDone: Promise<void>;
+      finished: Promise<void>;
+    };
+  }).startViewTransition;
+
+  if (!startViewTransition || reducedMotion) {
+    update();
+    return;
+  }
+
+  let updated = false;
+  try {
+    const transition = startViewTransition.call(document, () => {
+      flushSync(update);
+      updated = true;
+    });
+    await (waitForFinish ? transition.finished : transition.updateCallbackDone);
+  } catch {
+    if (!updated) update();
+  }
+};
 const USER_PRESETS_KEY = 'champagne.user-presets.v1';
 const PROMPT_SUGGESTIONS = [
   'Club-loud, but keep the kick punchy.',
@@ -143,8 +167,6 @@ export function ChampagneStudio() {
   const [brief, setBrief] = useState('');
   const [, setIntentDisplay] = useState<InterpretedBrief | null>(null);
   const [, setActivity] = useState<ActivityReceipt[]>([]);
-  const [renderProgress, setRenderProgress] = useState(0);
-  const [renderStatus, setRenderStatus] = useState('');
   const [comparisonIds, setComparisonIds] = useState<string[]>([]);
   const [userPresets, setUserPresets] = useState<UserPreset[]>([]);
   const [presetPage, setPresetPage] = useState(0);
@@ -154,7 +176,7 @@ export function ChampagneStudio() {
   const [webmcpInvoked, setWebmcpInvoked] = useState(false);
   const [agentPaused, setAgentPaused] = useState(false);
   const [agentPanelOpen, setAgentPanelOpen] = useState(false);
-  const [exportReadyId, setExportReadyId] = useState<string | null>(null);
+  const [, setExportReadyId] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [isDropTargeted, setIsDropTargeted] = useState(false);
@@ -188,6 +210,8 @@ export function ChampagneStudio() {
 
   const activeRevision = revisions.find((revision) => revision.id === activeRevisionId) ?? null;
   const activeWaveform = monitorMastered && activeRevision ? activeRevision.waveform : track?.waveform ?? [];
+  const isLoadingView = phase === 'analyzing' || phase === 'rendering';
+  const studioView = isLoadingView ? 'loading' : track ? 'studio' : 'selection';
   const presetPageCount = Math.max(1, Math.ceil(userPresets.length / 4));
   const visibleUserPresets = userPresets.slice(presetPage * 4, presetPage * 4 + 4);
 
@@ -387,8 +411,6 @@ export function ChampagneStudio() {
   const loadDecodedTrack = useCallback(async (name: string, sourceKey: string, buffer: AudioBuffer) => {
     stopPlayback(false);
     setPhase('analyzing');
-    setRenderStatus('Reading the signal');
-    setRenderProgress(18);
     setNotice(null);
     setRevisions([]);
     setActiveRevisionId(null);
@@ -401,18 +423,18 @@ export function ChampagneStudio() {
     const analysis = analyzeAudioBuffer(buffer);
     const waveform = makeWaveform(buffer);
     const loaded: TrackRuntime = { name, sourceKey, buffer, waveform, analysis };
-    setTrack(loaded);
-    setTrim({
-      startSeconds: 0,
-      endSeconds: buffer.duration,
-      fadeInSeconds: 0,
-      fadeOutSeconds: 0,
-      fadeInCurve: 1 / 3,
-      fadeOutCurve: 1 / 3,
+    await runViewTransition(() => {
+      setTrack(loaded);
+      setTrim({
+        startSeconds: 0,
+        endSeconds: buffer.duration,
+        fadeInSeconds: 0,
+        fadeOutSeconds: 0,
+        fadeInCurve: 1 / 3,
+        fadeOutCurve: 1 / 3,
+      });
+      setPhase('ready');
     });
-    setRenderProgress(100);
-    setRenderStatus('Ready for direction');
-    setPhase('ready');
     bumpStateVersion();
     addReceipt({ creator: 'manual', title: 'Track analyzed locally', detail: `${formatTime(buffer.duration)} · ${Math.round(buffer.sampleRate / 100) / 10} kHz · ${buffer.numberOfChannels === 1 ? 'Mono' : 'Stereo'}` });
     await afterPaint();
@@ -425,23 +447,27 @@ export function ChampagneStudio() {
       return;
     }
     try {
-      setPhase('analyzing');
-      setRenderStatus('Decoding locally');
-      setRenderProgress(8);
+      await runViewTransition(() => {
+        setAgentPanelOpen(false);
+        setPhase('analyzing');
+      }, true);
       const buffer = await decodeAudioFile(file);
       await loadDecodedTrack(file.name, `${file.size}-${file.lastModified}`, buffer);
     } catch (error) {
-      setPhase('empty');
-      setTrack(null);
-      setNotice(error instanceof Error ? `Champagne could not decode this file: ${error.message}` : 'Champagne could not decode this file.');
+      await runViewTransition(() => {
+        setPhase('empty');
+        setTrack(null);
+        setNotice(error instanceof Error ? `Champagne could not decode this file: ${error.message}` : 'Champagne could not decode this file.');
+      });
     }
   }, [loadDecodedTrack]);
 
   const loadDemo = useCallback(async () => {
     try {
-      setPhase('analyzing');
-      setRenderStatus('Loading Motorcycle');
-      setRenderProgress(8);
+      await runViewTransition(() => {
+        setAgentPanelOpen(false);
+        setPhase('analyzing');
+      }, true);
       const response = await fetch('/motorcycle-demo.m4a');
       if (!response.ok) throw new Error('The demo track is unavailable.');
       const blob = await response.blob();
@@ -449,8 +475,10 @@ export function ChampagneStudio() {
       const buffer = await decodeAudioFile(file);
       await loadDecodedTrack('Motorcycle', 'motorcycle-demo-v1', buffer);
     } catch (error) {
-      setPhase('empty');
-      setNotice(error instanceof Error ? error.message : 'Champagne could not load the demo track.');
+      await runViewTransition(() => {
+        setPhase('empty');
+        setNotice(error instanceof Error ? error.message : 'Champagne could not load the demo track.');
+      });
     }
   }, [loadDecodedTrack]);
 
@@ -510,10 +538,11 @@ export function ChampagneStudio() {
     const startingVersion = stateVersionRef.current;
     renderBusyRef.current = true;
     if (input.creator === 'webmcp') markWebMCP(`Creating a custom style from ${STYLE_RECIPES[input.baseStyle].name}`);
-    setPhase('rendering');
-    setRenderStatus('Compiling the Champagne plan');
-    setRenderProgress(16);
-    setMonitorMastered(true);
+    await runViewTransition(() => {
+      setAgentPanelOpen(false);
+      setPhase('rendering');
+      setMonitorMastered(true);
+    }, true);
 
     const requestedModifiers = input.modifiers ?? makeModifiers(input);
     const modifiers = { ...DEFAULT_MODIFIERS };
@@ -541,12 +570,13 @@ export function ChampagneStudio() {
       modifiers,
     });
     await afterPaint();
-    setRenderStatus('Rendering locally');
-    setRenderProgress(52);
 
     try {
       const buffer = await renderMasteringTake(sourceTrack.buffer, input.baseStyle, modifiers, input.signal);
-      if (startingVersion !== stateVersionRef.current) return { ok: false, code: 'STALE_STATE', message: 'The project changed while the preview was rendering.' };
+      if (startingVersion !== stateVersionRef.current) {
+        await runViewTransition(() => setPhase(runtimeRef.current.revisions.length ? 'preview_ready' : 'ready'));
+        return { ok: false, code: 'STALE_STATE', message: 'The project changed while the preview was rendering.' };
+      }
       const currentRevisions = runtimeRef.current.revisions;
       const parent = input.parentId ? currentRevisions.find((revision) => revision.id === input.parentId) : undefined;
       const changedDimensions = (Object.entries(modifiers) as Array<[keyof MasteringModifiers, number]>)
@@ -571,14 +601,14 @@ export function ChampagneStudio() {
         summary,
         planHash: makePlanHash(input.baseStyle, modifiers, sourceTrack.sourceKey),
       };
-      setRevisions((current) => [...current, revision]);
+      await runViewTransition(() => {
+        setRevisions((current) => [...current, revision]);
+        setActiveRevisionId(revision.id);
+        setComparisonIds((current) => current.length ? [...new Set([...current, revision.id])].slice(-3) : [revision.id]);
+        setExportReadyId(null);
+        setPhase('preview_ready');
+      });
       if (input.creator !== 'manual') savePresetToDevice(revision);
-      setActiveRevisionId(revision.id);
-      setComparisonIds((current) => current.length ? [...new Set([...current, revision.id])].slice(-3) : [revision.id]);
-      setExportReadyId(null);
-      setRenderStatus('Style ready');
-      setRenderProgress(100);
-      setPhase('preview_ready');
       const nextVersion = bumpStateVersion();
       addReceipt({ creator: input.creator, title: `${displayName} created`, detail: `${STYLE_RECIPES[input.baseStyle].name} baseline · ${input.priorities.join(' + ') || 'balanced direction'}`, revisionId: revision.id });
       if (playbackRef.current) void startPlayback(currentTime, { buffer, analysis: revision.analysis });
@@ -595,8 +625,10 @@ export function ChampagneStudio() {
       };
     } catch (error) {
       const cancelled = error instanceof DOMException && error.name === 'AbortError';
-      setPhase(runtimeRef.current.revisions.length ? 'preview_ready' : 'ready');
       setNotice(cancelled ? 'The local render was cancelled.' : 'Champagne could not render this style.');
+      await runViewTransition(() => {
+        setPhase(runtimeRef.current.revisions.length ? 'preview_ready' : 'ready');
+      });
       return { ok: false, code: cancelled ? 'CANCELLED' : 'RENDER_FAILED', message: cancelled ? 'The local render was cancelled.' : 'The local render failed.' };
     } finally {
       renderBusyRef.current = false;
@@ -651,10 +683,11 @@ export function ChampagneStudio() {
     const startingVersion = stateVersionRef.current;
     renderBusyRef.current = true;
     if (input.creator === 'webmcp') markWebMCP(`Creating ${uniqueStyles.length} mastering directions`);
-    setPhase('rendering');
-    setMonitorMastered(true);
-    setRenderStatus('Building custom styles');
-    setRenderProgress(8);
+    await runViewTransition(() => {
+      setAgentPanelOpen(false);
+      setPhase('rendering');
+      setMonitorMastered(true);
+    }, true);
     const constraintList = input.constraint === 'none' ? [] : [input.constraint.replaceAll('_', ' ')];
     setIntentDisplay({
       mode: 'variations',
@@ -673,8 +706,6 @@ export function ChampagneStudio() {
       for (let index = 0; index < uniqueStyles.length; index += 1) {
         if (input.signal?.aborted) throw new DOMException('Cancelled', 'AbortError');
         const style = uniqueStyles[index];
-        setRenderStatus(`Rendering ${STYLE_RECIPES[style].name}`);
-        setRenderProgress(12 + (index / uniqueStyles.length) * 76);
         const modifiers = makeModifiers({
           priorities: style === 'dominant' ? ['loudness', 'punch'] : style === 'warm_presence' ? ['warmth'] : ['clarity'],
           constraints: constraintList,
@@ -709,15 +740,18 @@ export function ChampagneStudio() {
           planHash: makePlanHash(style, modifiers, sourceTrack.sourceKey),
         });
       }
-      if (startingVersion !== stateVersionRef.current) return { ok: false, code: 'STALE_STATE', message: 'The project changed while the variations were rendering.' };
-      setRevisions((current) => [...current, ...created]);
+      if (startingVersion !== stateVersionRef.current) {
+        await runViewTransition(() => setPhase(runtimeRef.current.revisions.length ? 'preview_ready' : 'ready'));
+        return { ok: false, code: 'STALE_STATE', message: 'The project changed while the variations were rendering.' };
+      }
+      await runViewTransition(() => {
+        setRevisions((current) => [...current, ...created]);
+        setComparisonIds(created.map((revision) => revision.id));
+        setActiveRevisionId(created[0].id);
+        runtimeRef.current.comparisonIds = created.map((revision) => revision.id);
+        setPhase('preview_ready');
+      });
       created.forEach(savePresetToDevice);
-      setComparisonIds(created.map((revision) => revision.id));
-      setActiveRevisionId(created[0].id);
-      runtimeRef.current.comparisonIds = created.map((revision) => revision.id);
-      setRenderProgress(100);
-      setRenderStatus('Styles ready');
-      setPhase('preview_ready');
       const nextVersion = bumpStateVersion();
       addReceipt({ creator: input.creator, title: `${created.length} custom styles ready`, detail: 'Warm, open, and club-loud directions added to Your Styles.', revisionId: created[0].id });
       if (playbackRef.current) void startPlayback(currentTime, { buffer: created[0].buffer, analysis: created[0].analysis });
@@ -733,7 +767,7 @@ export function ChampagneStudio() {
       };
     } catch (error) {
       const cancelled = error instanceof DOMException && error.name === 'AbortError';
-      setPhase(snapshot.revisions.length ? 'preview_ready' : 'ready');
+      await runViewTransition(() => setPhase(snapshot.revisions.length ? 'preview_ready' : 'ready'));
       return { ok: false, code: cancelled ? 'CANCELLED' : 'RENDER_FAILED', message: cancelled ? 'The variation render was cancelled.' : 'Champagne could not render the variation set.' };
     } finally {
       renderBusyRef.current = false;
@@ -804,7 +838,7 @@ export function ChampagneStudio() {
     if (input.expectedStateVersion !== stateVersionRef.current) return { ok: false, code: 'STALE_STATE', message: 'Call get_studio_state and retry.', currentStateVersion: stateVersionRef.current };
     const revision = runtimeRef.current.revisions.find((candidate) => candidate.id === input.takeId);
     if (!revision) return { ok: false, code: 'TAKE_NOT_FOUND', message: 'That mastering style is not available.' };
-    if (input.creator === 'webmcp') markWebMCP(`Preparing ${revision.displayName} for export`);
+    if (input.creator === 'webmcp') markWebMCP(`Selecting ${revision.displayName} for export`);
     setActiveRevisionId(revision.id);
     setMonitorMastered(true);
     setExportReadyId(revision.id);
@@ -1020,37 +1054,36 @@ export function ChampagneStudio() {
 
   const returnHome = useCallback(() => {
     stopPlayback(false);
-    bumpStateVersion();
-    setTrack(null);
-    setPhase('empty');
-    setRevisions([]);
-    setActiveRevisionId(null);
-    setMonitorMastered(false);
-    setComparisonIds([]);
-    setExportReadyId(null);
-    setCurrentTime(0);
-    setBrief('');
-    setIntentDisplay(null);
-    setRenderProgress(0);
-    setRenderStatus('');
-    setNotice(null);
-    setActivity([]);
-    setTrim({
-      startSeconds: 0,
-      endSeconds: 0,
-      fadeInSeconds: 0,
-      fadeOutSeconds: 0,
-      fadeInCurve: 1 / 3,
-      fadeOutCurve: 1 / 3,
+    void runViewTransition(() => {
+      setTrack(null);
+      setPhase('empty');
+      setRevisions([]);
+      setActiveRevisionId(null);
+      setMonitorMastered(false);
+      setComparisonIds([]);
+      setExportReadyId(null);
+      setCurrentTime(0);
+      setBrief('');
+      setIntentDisplay(null);
+      setNotice(null);
+      setActivity([]);
+      setTrim({
+        startSeconds: 0,
+        endSeconds: 0,
+        fadeInSeconds: 0,
+        fadeOutSeconds: 0,
+        fadeInCurve: 1 / 3,
+        fadeOutCurve: 1 / 3,
+      });
+      bumpStateVersion();
     });
   }, [bumpStateVersion, stopPlayback]);
 
   const handleDownload = useCallback(async () => {
-    const revision = runtimeRef.current.revisions.find((candidate) => candidate.id === exportReadyId);
+    const revision = runtimeRef.current.revisions.find((candidate) => candidate.id === runtimeRef.current.activeRevisionId);
     const sourceTrack = runtimeRef.current.track;
     if (!revision || !sourceTrack) return;
     setIsExporting(true);
-    setRenderStatus('Writing 24-bit / 48 kHz WAV');
     try {
       const blob = await encodeMasterWav24(revision.buffer, runtimeRef.current.trim);
       const url = URL.createObjectURL(blob);
@@ -1061,11 +1094,11 @@ export function ChampagneStudio() {
       setTimeout(() => URL.revokeObjectURL(url), 30_000);
       addReceipt({ creator: 'manual', title: 'Master downloaded', detail: `${revision.displayName} · 24-bit / 48 kHz WAV`, revisionId: revision.id });
     } catch {
-      setNotice('Champagne could not prepare the WAV download.');
+      setNotice('Champagne could not create the WAV download.');
     } finally {
       setIsExporting(false);
     }
-  }, [addReceipt, exportReadyId]);
+  }, [addReceipt]);
 
   const agentPayload = useMemo(() => ({
     project: track ? { status: phase, stateVersion, durationSeconds: round(track.analysis.durationSeconds, 2), activeStyleId: activeRevisionId, styleCount: revisions.length } : { status: 'empty', stateVersion },
@@ -1105,7 +1138,8 @@ export function ChampagneStudio() {
       <div className="ambient ambient-violet" />
       <div className="ambient ambient-gold" />
 
-      <header className="studio-header">
+      <div key={studioView} className={`studio-view studio-view-${studioView}`}>
+      {!isLoadingView && <header className="studio-header">
         <button className="brand-cluster" type="button" onClick={() => track && setAgentPanelOpen(true)} aria-label="Champagne mastering studio">
           <span className="brand-mark"><AudioWaveform /></span>
           <span>
@@ -1127,20 +1161,17 @@ export function ChampagneStudio() {
             </Button>
           )}
           <Button
-            className={`export-button ${exportReadyId ? 'is-ready' : ''}`}
+            className="export-button"
             size="lg"
-            disabled={!activeRevision || isExporting || phase === 'rendering'}
-            onClick={() => {
-              if (exportReadyId === activeRevisionId) void handleDownload();
-              else if (activeRevisionId) void commitMasterCommand({ expectedStateVersion: stateVersionRef.current, takeId: activeRevisionId, creator: 'manual' });
-            }}
+            disabled={!activeRevision || isExporting}
+            onClick={() => void handleDownload()}
           >
-            {isExporting ? <Loader2 className="animate-spin" /> : exportReadyId === activeRevisionId ? <Download /> : <ArrowDownToLine />}
-            <span className="hidden sm:inline">{isExporting ? 'Preparing…' : exportReadyId === activeRevisionId ? 'Download WAV' : 'Prepare master'}</span>
-            <span className="sm:hidden">Export</span>
+            <Download />
+            <span className="hidden sm:inline">{isExporting ? 'Downloading…' : 'Download WAV'}</span>
+            <span className="sm:hidden">Download</span>
           </Button>
         </div>
-      </header>
+      </header>}
 
       <input
         ref={fileInputRef}
@@ -1154,29 +1185,23 @@ export function ChampagneStudio() {
         }}
       />
 
-      {!track ? (
+      {isLoadingView ? (
+        <section className="simple-loading" aria-label="Processing audio">
+          <span className="simple-loading-bar" aria-hidden="true"><i /></span>
+          <progress className="sr-only" aria-label="Processing audio" />
+        </section>
+      ) : !track ? (
         <section className="empty-studio">
           <div className={`empty-drop surface ${isDropTargeted ? 'is-targeted' : ''}`}>
-            {phase === 'analyzing' ? (
-              <div className="empty-progress">
-                <span className="progress-orbit"><Loader2 className="animate-spin" /></span>
-                <p className="eyebrow text-gold">{renderStatus}</p>
-                <h1>Reading your track locally</h1>
-                <span className="progress-line"><i style={{ width: `${renderProgress}%` }} /></span>
-              </div>
-            ) : (
-              <>
-                <span className="drop-icon"><Upload /></span>
-                <p className="eyebrow text-gold">AGENTIC MUSIC MASTERING</p>
-                <h1>Your sound just leveled up.</h1>
-                <p className="empty-copy">AI guides the physics behind Champagne&apos;s mastering engine. Clock every take, compare original and mastered versions, and download your finished product.</p>
-                <div className="empty-actions">
-                  <Button className="gold-primary" size="lg" onClick={() => fileInputRef.current?.click()}><Music2 /> Select Audio</Button>
-                  <Button className="demo-button" variant="outline" size="lg" onClick={() => void loadDemo()}><Play /> Demo</Button>
-                </div>
-                <p className="format-copy">WAV · AIFF · MP3 · M4A · FLAC</p>
-              </>
-            )}
+            <span className="drop-icon"><Upload /></span>
+            <p className="eyebrow text-gold">AGENTIC MUSIC MASTERING</p>
+            <h1>Your sound just leveled up.</h1>
+            <p className="empty-copy">AI guides the physics behind Champagne&apos;s mastering engine. Clock every take, compare original and mastered versions, and download your finished product.</p>
+            <div className="empty-actions">
+              <Button className="gold-primary" size="lg" onClick={() => fileInputRef.current?.click()}><Music2 /> Select Audio</Button>
+              <Button className="demo-button" variant="outline" size="lg" onClick={() => void loadDemo()}><Play /> Demo</Button>
+            </div>
+            <p className="format-copy">WAV · AIFF · MP3 · M4A · FLAC</p>
           </div>
           <div className="empty-proof-row">
             <div><LockKeyhole /><span><strong>Privacy</strong><small>Music is processed locally on your device.</small></span></div>
@@ -1221,13 +1246,6 @@ export function ChampagneStudio() {
                     onTrimChange={handleTrimChange}
                     onEditCommit={commitManualTrim}
                   />
-                  {phase === 'rendering' && (
-                    <div className="render-overlay">
-                      <span className="render-pulse"><AudioWaveform /></span>
-                      <span><strong>{renderStatus}</strong><small>Your audio is being processed on this device</small></span>
-                      <b>{Math.round(renderProgress)}%</b>
-                    </div>
-                  )}
                 </div>
 
                 <div className="transport-row">
@@ -1272,11 +1290,10 @@ export function ChampagneStudio() {
                     className="min-h-[76px] resize-none border-0 bg-transparent px-10 py-5 text-center font-sans text-[18px] leading-7 shadow-none focus-visible:ring-0"
                     placeholder=""
                     aria-label="Mastering Magic"
-                    disabled={phase === 'rendering'}
                   />
                 </div>
-                <Button className="send-button" size="icon" aria-label="Create local preview" disabled={!brief.trim() || phase === 'rendering'} onClick={() => void submitBrief()}>
-                  {phase === 'rendering' ? <Loader2 className="animate-spin" /> : <ArrowUp />}
+                <Button className="send-button" size="icon" aria-label="Create local preview" disabled={!brief.trim()} onClick={() => void submitBrief()}>
+                  <ArrowUp />
                 </Button>
               </div>
             </div>
@@ -1296,7 +1313,7 @@ export function ChampagneStudio() {
                   ));
                   const selected = activeRevision?.id === readyRevision?.id && monitorMastered;
                   return (
-                    <button className={`style-row ${selected ? 'is-selected' : ''}`} key={style} type="button" disabled={phase === 'rendering'} onClick={() => handleStyle(style)}>
+                    <button className={`style-row ${selected ? 'is-selected' : ''}`} key={style} type="button" onClick={() => handleStyle(style)}>
                       <span className="style-glyph"><Icon /></span>
                       <span className="min-w-0 flex-1 text-left"><strong>{recipe.name}</strong><small>{recipe.subtitle}</small></span>
                       {readyRevision ? <span className="ready-mark"><Check /></span> : <ChevronRight className="style-chevron" />}
@@ -1324,7 +1341,7 @@ export function ChampagneStudio() {
                       ));
                       const selected = activeRevision?.id === rendered?.id && monitorMastered;
                       return (
-                        <button className={`style-row preset-row ${selected ? 'is-selected' : ''}`} key={preset.id} type="button" disabled={phase === 'rendering'} onClick={() => handleUserPreset(preset)}>
+                        <button className={`style-row preset-row ${selected ? 'is-selected' : ''}`} key={preset.id} type="button" onClick={() => handleUserPreset(preset)}>
                           <span className="style-glyph"><WandSparkles /></span>
                           <span className="min-w-0 flex-1 text-left"><strong>{preset.name}</strong><small>{STYLE_RECIPES[preset.baseStyle].name} baseline · Custom</small></span>
                           {rendered ? <span className="ready-mark"><Check /></span> : <ChevronRight className="style-chevron" />}
@@ -1339,6 +1356,7 @@ export function ChampagneStudio() {
           </aside>
         </div>
       )}
+      </div>
 
       <Sheet open={agentPanelOpen} onOpenChange={setAgentPanelOpen}>
         <SheetContent className="agent-sheet w-[min(440px,94vw)] border-white/10 bg-[#101015]/98 sm:max-w-[440px]">
@@ -1377,7 +1395,7 @@ export function ChampagneStudio() {
             <section className="sheet-section">
               <div className="sheet-section-heading"><span>AVAILABLE ACTIONS</span><Activity /></div>
               <div className="tool-list">
-                {['Read studio state', 'Analyze track locally', 'Create a custom style', 'Refine a style', 'Create three directions', 'Stage style options', 'Set trim and fades', 'Prepare final master'].map((tool) => <span key={tool}><Check />{tool}</span>)}
+                {['Read studio state', 'Analyze track locally', 'Create a custom style', 'Refine a style', 'Create three directions', 'Stage style options', 'Set trim and fades', 'Select final master'].map((tool) => <span key={tool}><Check />{tool}</span>)}
               </div>
             </section>
           </div>
