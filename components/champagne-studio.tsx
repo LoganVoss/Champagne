@@ -18,12 +18,10 @@ import {
   Info,
   Loader2,
   LockKeyhole,
-  MoreHorizontal,
   Music2,
   Pause,
   Play,
   Plus,
-  RotateCcw,
   ShieldCheck,
   SlidersHorizontal,
   Sparkles,
@@ -142,8 +140,8 @@ export function ChampagneStudio() {
   const [currentTime, setCurrentTime] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [brief, setBrief] = useState('');
-  const [intentDisplay, setIntentDisplay] = useState<InterpretedBrief | null>(null);
-  const [activity, setActivity] = useState<ActivityReceipt[]>([]);
+  const [, setIntentDisplay] = useState<InterpretedBrief | null>(null);
+  const [, setActivity] = useState<ActivityReceipt[]>([]);
   const [renderProgress, setRenderProgress] = useState(0);
   const [renderStatus, setRenderStatus] = useState('');
   const [comparisonIds, setComparisonIds] = useState<string[]>([]);
@@ -160,7 +158,6 @@ export function ChampagneStudio() {
   const [isDropTargeted, setIsDropTargeted] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const briefInputRef = useRef<HTMLTextAreaElement>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const playbackRef = useRef<PlaybackRuntime | null>(null);
   const renderBusyRef = useRef(false);
@@ -935,7 +932,7 @@ export function ChampagneStudio() {
       return;
     }
     setIntentDisplay(interpreted);
-    addReceipt({ creator: 'brief', title: 'Brief understood', detail: interpreted.mode === 'variations' ? 'Three contrasting directions' : `${interpreted.customName} · ${STYLE_RECIPES[interpreted.style].name} baseline` });
+    addReceipt({ creator: 'brief', title: 'Direction understood', detail: interpreted.mode === 'variations' ? 'Three contrasting directions' : `${interpreted.customName} · ${STYLE_RECIPES[interpreted.style].name} baseline` });
     const expectedStateVersion = stateVersionRef.current;
     if (interpreted.mode === 'variations') {
       await createVariationsCommand({
@@ -1119,6 +1116,12 @@ export function ChampagneStudio() {
           </span>
         </button>
 
+        <button className={`header-site-tools ${webmcpInvoked && !agentPaused ? 'is-live' : ''}`} type="button" onClick={() => setAgentPanelOpen(true)}>
+          <Cable />
+          <span>{connectionLabel}</span>
+          <span className="connection-dot" />
+        </button>
+
         <div className="header-actions">
           {track && (
             <Button className="subtle-button header-new-track" variant="outline" size="sm" onClick={returnHome}>
@@ -1167,10 +1170,10 @@ export function ChampagneStudio() {
               <>
                 <span className="drop-icon"><Upload /></span>
                 <p className="eyebrow text-gold">AGENTIC MUSIC MASTERING</p>
-                <h1>Your sound just leveled up.<br /><span>Discover audio in a new dimension.</span></h1>
-                <p className="empty-copy">AI guides the physics behind Champagne&apos;s mastering engine. Clock every take, compare original and mastered versions, download your finished product.</p>
+                <h1>Your sound just leveled up.</h1>
+                <p className="empty-copy">AI guides the physics behind Champagne&apos;s mastering engine. Clock every take, compare original and mastered versions, and download your finished product.</p>
                 <div className="empty-actions">
-                  <Button className="gold-primary" size="lg" onClick={() => fileInputRef.current?.click()}><Music2 /> Choose audio file</Button>
+                  <Button className="gold-primary" size="lg" onClick={() => fileInputRef.current?.click()}><Music2 /> Select Audio</Button>
                   <Button className="demo-button" variant="outline" size="lg" onClick={() => void loadDemo()}><Play /> Demo</Button>
                 </div>
                 <p className="format-copy">WAV · AIFF · MP3 · M4A · FLAC</p>
@@ -1178,9 +1181,9 @@ export function ChampagneStudio() {
             )}
           </div>
           <div className="empty-proof-row">
-            <div><LockKeyhole /><span><strong>Privacy</strong><small>Song stays local on your device.</small></span></div>
-            <div><ShieldCheck /><span><strong>Data Protection</strong><small>Songs are never overwritten, new files are created.</small></span></div>
-            <div><Headphones /><span><strong>Quality Control</strong><small>Hear edits in real time.</small></span></div>
+            <div><LockKeyhole /><span><strong>Privacy</strong><small>Music is processed locally on your device.</small></span></div>
+            <div><ShieldCheck /><span><strong>File Protection</strong><small>Audio files are never overwritten.</small></span></div>
+            <div><Headphones /><span><strong>Quality Control</strong><small>Hear your edits in real time.</small></span></div>
           </div>
           {notice && <div className="notice-banner"><Info />{notice}<button onClick={() => setNotice(null)} aria-label="Dismiss"><X /></button></div>}
         </section>
@@ -1248,45 +1251,17 @@ export function ChampagneStudio() {
               <div className="brief-header">
                 <div className="flex items-center gap-2.5">
                   <span className="brief-icon"><WandSparkles /></span>
-                  <span><strong>Mastering Brief</strong><small>Direct the engine in your own words</small></span>
+                  <span><strong>Mastering Magic</strong></span>
                 </div>
-                <button className="brief-connection" type="button" onClick={() => setAgentPanelOpen(true)}>
-                  <span className={webmcpInvoked && !agentPaused ? 'is-live' : ''} />
-                  {webmcpInvoked && !agentPaused ? 'ChatGPT and you share this studio' : 'Local brief · same command bus'}
-                </button>
               </div>
 
-              {intentDisplay && (
-                <div className="intent-ribbon">
-                  <span className="intent-understood"><Check /> UNDERSTOOD</span>
-                  {intentDisplay.mode === 'variations' ? (
-                    intentDisplay.styles?.map((style) => <b key={style}>{STYLE_RECIPES[style].name.toUpperCase()}</b>)
-                  ) : (
-                    <b>{intentDisplay.customName.toUpperCase()}</b>
-                  )}
-                  {intentDisplay.priorities.slice(0, 3).map((priority) => <span key={priority}>{priority.toUpperCase()} ↑</span>)}
-                  {intentDisplay.constraints.slice(0, 2).map((constraint) => <span className="is-locked" key={constraint}><LockKeyhole /> {constraint.toUpperCase()}</span>)}
-                </div>
-              )}
-
-              {!brief && (
-                <button
-                  className="prompt-cycle"
-                  type="button"
-                  onClick={() => {
-                    setBrief(PROMPT_SUGGESTIONS[suggestionIndex]);
-                    requestAnimationFrame(() => briefInputRef.current?.focus());
-                  }}
-                  aria-label={`Use suggestion: ${PROMPT_SUGGESTIONS[suggestionIndex]}`}
-                >
-                  <span>TRY</span>
-                  <b key={suggestionIndex}>{PROMPT_SUGGESTIONS[suggestionIndex]}</b>
-                  <ArrowUp />
-                </button>
-              )}
               <div className="composer">
+                {!brief && (
+                  <div className="composer-suggestion" key={suggestionIndex} aria-hidden="true">
+                    {PROMPT_SUGGESTIONS[suggestionIndex]}
+                  </div>
+                )}
                 <Textarea
-                  ref={briefInputRef}
                   value={brief}
                   onChange={(event) => setBrief(event.target.value)}
                   onKeyDown={(event) => {
@@ -1296,17 +1271,13 @@ export function ChampagneStudio() {
                     }
                   }}
                   className="min-h-[70px] resize-none border-0 bg-transparent px-1 py-0 font-sans text-[15px] leading-6 shadow-none focus-visible:ring-0"
-                  placeholder="Describe your master…"
-                  aria-label="Mastering Brief"
+                  placeholder=""
+                  aria-label="Mastering Magic"
                   disabled={phase === 'rendering'}
                 />
                 <Button className="send-button" size="icon" aria-label="Create local preview" disabled={!brief.trim() || phase === 'rendering'} onClick={() => void submitBrief()}>
                   {phase === 'rendering' ? <Loader2 className="animate-spin" /> : <ArrowUp />}
                 </Button>
-              </div>
-              <div className="brief-footer">
-                <span><LockKeyhole /> Audio never leaves this device</span>
-                <span>Enter to direct · Shift+Enter for a new line</span>
               </div>
             </div>
 
@@ -1370,7 +1341,7 @@ export function ChampagneStudio() {
                 <>
                   <div className="change-origin">
                     <span className={`origin-icon ${activeRevision.creator === 'webmcp' ? 'is-agent' : ''}`}>{activeRevision.creator === 'webmcp' ? <Bot /> : activeRevision.creator === 'brief' ? <WandSparkles /> : <SlidersHorizontal />}</span>
-                    <span><strong>{activeRevision.displayName}</strong><small>{activeRevision.creator === 'webmcp' ? 'Directed by ChatGPT' : activeRevision.creator === 'brief' ? 'Created from your brief' : 'Selected manually'} · {activeRevision.prompt}</small></span>
+                    <span><strong>{activeRevision.displayName}</strong><small>{activeRevision.creator === 'webmcp' ? 'Directed by ChatGPT' : activeRevision.creator === 'brief' ? 'Created with Mastering Magic' : 'Selected manually'} · {activeRevision.prompt}</small></span>
                   </div>
                   <div className="change-list">
                     <div><span>Starting point</span><strong>{STYLE_RECIPES[activeRevision.style].name}</strong></div>
@@ -1393,24 +1364,6 @@ export function ChampagneStudio() {
               )}
             </div>
 
-            <button className="agent-card surface" type="button" onClick={() => setAgentPanelOpen(true)}>
-              <span className={`agent-card-icon ${webmcpInvoked && !agentPaused ? 'is-live' : ''}`}><Bot /></span>
-              <span><strong>{connectionLabel}</strong><small>{webmcpAvailable ? webmcpInvoked ? 'Every agent action appears here before export.' : 'Ask ChatGPT to create, refine, compare, trim, or stage a master.' : 'Open this site in ChatGPT’s browser to expose site tools.'}</small></span>
-              <ChevronRight />
-            </button>
-
-            {activity.length > 0 && (
-              <div className="surface sidebar-card activity-card">
-                <div className="sidebar-heading"><span>RECENT ACTIVITY</span><button type="button" onClick={() => setAgentPanelOpen(true)}><MoreHorizontal /></button></div>
-                <div className="activity-list">
-                  {activity.slice(0, 4).map((receipt) => (
-                    <div key={receipt.id}><span className={`activity-dot is-${receipt.creator}`} />
-                      <span><strong>{receipt.title}</strong><small>{receipt.detail}</small></span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
           </aside>
         </div>
       )}
@@ -1427,7 +1380,7 @@ export function ChampagneStudio() {
             </div>
             <div className={`sheet-connection ${webmcpAvailable ? 'is-ready' : ''}`}>
               <span className="connection-dot" />
-              <span><strong>{connectionLabel}</strong><small>{webmcpAvailable ? 'Eight Champagne actions are registered on this top-level page.' : 'Site tools are unavailable in this browser. The local brief and manual controls still work.'}</small></span>
+              <span><strong>{connectionLabel}</strong><small>{webmcpAvailable ? 'Eight Champagne actions are registered on this top-level page.' : 'Site tools are unavailable in this browser. Manual controls remain available.'}</small></span>
             </div>
           </SheetHeader>
           <div className="agent-sheet-scroll">
@@ -1455,12 +1408,6 @@ export function ChampagneStudio() {
                 {['Read studio state', 'Analyze track locally', 'Create a custom style', 'Refine a style', 'Create three directions', 'Stage style options', 'Set trim and fades', 'Prepare final master'].map((tool) => <span key={tool}><Check />{tool}</span>)}
               </div>
             </section>
-            {activity.length > 0 && (
-              <section className="sheet-section">
-                <div className="sheet-section-heading"><span>ACTION RECEIPTS</span><RotateCcw /></div>
-                <div className="sheet-receipts">{activity.map((receipt) => <div key={receipt.id}><span className={`activity-dot is-${receipt.creator}`} /><span><strong>{receipt.title}</strong><small>{receipt.detail}</small></span></div>)}</div>
-              </section>
-            )}
           </div>
         </SheetContent>
       </Sheet>

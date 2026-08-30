@@ -16,7 +16,7 @@ export const metadata: Metadata = {
   metadataBase: new URL('https://champagne-mastering.vossx.chatgpt.site'),
   title: 'Champagne — Agentic Music Mastering',
   description:
-    'Your sound just leveled up. Discover audio in a new dimension with Champagne’s agent-directed mastering engine.',
+    'AI guides the physics behind Champagne’s mastering engine. Compare original and mastered versions, then download your finished product.',
   icons: {
     icon: '/favicon-64.png',
     apple: '/champagne-icon.png',

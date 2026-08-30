@@ -11,7 +11,7 @@ npm run dev
 
 Open the local URL printed by the development server. Use **Demo** to load the included `Motorcycle` showcase track, or load your own WAV, AIFF, MP3, M4A, or FLAC file. Browser codec support varies by platform.
 
-## Mastering Brief
+## Mastering Magic
 
 The four Champagne signatures are safe engine baselines, not the limit of the prompt surface. The local intent compiler recognizes 25 named mastering directions and combines twelve bounded controls:
 
@@ -19,7 +19,7 @@ The four Champagne signatures are safe engine baselines, not the limit of the pr
 - low end, presence, air, and width
 - glue, density, and smoothness
 
-Each successful brief creates a descriptively named custom style and saves its metadata in **User Presets** on that device. Audio buffers are never persisted with the preset. Unknown language is rejected with useful guidance instead of silently falling back to an unchanged signature.
+Each successful direction creates a descriptively named custom style and saves its metadata in **User Presets** on that device. Audio buffers are never persisted with the preset. Unknown language is rejected with useful guidance instead of silently falling back to an unchanged signature.
 
 ## WebMCP
 
@@ -34,7 +34,7 @@ The top-level studio page imperatively registers eight page-bound tools through 
 - `set_trim_fades`
 - `commit_master`
 
-Every tool calls the same command functions used by the manual style controls and the on-page Mastering Brief. Mutations validate a current `expectedStateVersion`, update the visible studio, create a receipt, and return only after the UI has had time to commit.
+Every tool calls the same command functions used by the manual style controls and on-page Mastering Magic. Mutations validate a current `expectedStateVersion`, update the visible studio, and return only after the UI has had time to commit.
 
 `commit_master` stages a style but never starts a download. The user must click **Download WAV** in the studio.
 
