@@ -183,7 +183,7 @@ export async function registerChampagneTools(
       name: 'create_mastering_take',
       title: 'Create a custom mastering style',
       description:
-        'Use only when the user requests mastering or sonic changes. Create and locally render one reversible custom Champagne style from a safe baseline plus small, bounded musical adjustments. If the same request also includes cuts, fades, speed, or download, call those tools afterward in that order and pass each newly returned stateVersion into the next action.',
+        'Use only when the user requests mastering or sonic changes. Create and locally render one reversible custom Champagne style from a safe baseline plus small, bounded musical adjustments. If the same request also includes cuts, fades, or speed, call those tools afterward in that order and pass each newly returned stateVersion into the next action.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -524,7 +524,7 @@ export async function registerChampagneTools(
       name: 'commit_master',
       title: 'Prepare the selected master',
       description:
-        'Select one rendered style as the current release-quality local 24-bit 48 kHz WAV. Use download_master when the user explicitly asks to download it.',
+        'Select one rendered style as the current release-quality local 24-bit 48 kHz WAV. The person saves it with the visible Download WAV button.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -594,7 +594,7 @@ export async function registerChampagneTools(
       name: 'download_master',
       title: 'Prepare the current track for download',
       description:
-        'Always use when the user says download in any form, including inside a longer request or as the entire request. Prepare the selected current master as a local 24-bit 48 kHz WAV while preserving its trim, fades, and speed. Browser security requires the user to finish by clicking the visible Download WAV button; after this tool returns, clearly tell them to click it and never claim the file downloaded automatically. Never remaster for a download-only request. Call this last after other requested actions. The version is optional and a stale version will not block an explicit download.',
+        'This helper can prepare the selected current master as a local 24-bit 48 kHz WAV, but it cannot complete a browser download. Do not suggest it as part of a workflow. The person should click the visible Download WAV button to save. Call this only when the user explicitly asks Champagne to prepare the WAV first, and never claim the file downloaded automatically. The version is optional and a stale version will not block preparation.',
       inputSchema: {
         type: 'object',
         properties: {

@@ -974,7 +974,6 @@ export function ChampagneStudio() {
             'set_trim_fades',
             'set_track_speed',
             'commit_master',
-            'download_master',
           ],
         };
       } catch (error) {
@@ -1210,7 +1209,6 @@ export function ChampagneStudio() {
             'set_trim_fades',
             'set_track_speed',
             'commit_master',
-            'download_master',
           ],
         };
       } catch (error) {
@@ -1615,8 +1613,7 @@ export function ChampagneStudio() {
       addReceipt({
         creator: input.creator,
         title: `${revision.displayName} selected`,
-        detail:
-          '24-bit / 48 kHz WAV is staged and can be downloaded by an explicit click or prompt.',
+        detail: '24-bit / 48 kHz WAV is staged for the Download WAV button.',
         revisionId: revision.id,
       });
       if (playbackRef.current)
@@ -1630,8 +1627,8 @@ export function ChampagneStudio() {
         stateVersion: nextVersion,
         takeId: revision.id,
         exportReady: true,
-        summary: `${revision.displayName} is ready. Use download_master only if the user explicitly requested a download.`,
-        nextActions: ['download_master'],
+        summary: `${revision.displayName} is ready. The person can save it with the visible Download WAV button.`,
+        nextActions: [],
       };
     },
     [addReceipt, bumpStateVersion, currentTime, markWebMCP, startPlayback],
@@ -1677,7 +1674,6 @@ export function ChampagneStudio() {
             'set_trim_fades',
             'set_track_speed',
             'commit_master',
-            'download_master',
           ]
         : [
             'analyze_track',
@@ -1685,7 +1681,6 @@ export function ChampagneStudio() {
             'create_variations',
             'set_trim_fades',
             'set_track_speed',
-            'download_master',
           ],
       privacy: { audioShared: false, filenameShared: false },
     };
@@ -2120,7 +2115,6 @@ export function ChampagneStudio() {
           'trim/fades',
           'speed',
           'stage export',
-          'download on request',
         ],
       },
       excluded: ['audio bytes', 'waveform samples', 'filename', 'local path'],
@@ -2329,53 +2323,6 @@ export function ChampagneStudio() {
                       <strong>{track.name}</strong>
                     </span>
                   </div>
-                  <div className="track-style-controls">
-                    <fieldset
-                      className="track-style-picker"
-                      aria-label="Signature mastering styles"
-                    >
-                      <legend className="sr-only">Signature styles</legend>
-                      {STYLE_IDS.map((style) => {
-                        const recipe = STYLE_RECIPES[style];
-                        const Icon = styleIcons[style];
-                        const readyRevision = [...revisions]
-                          .reverse()
-                          .find(
-                            (revision) =>
-                              revision.style === style &&
-                              revision.displayName === recipe.name,
-                          );
-                        const selected =
-                          activeRevision?.id === readyRevision?.id &&
-                          monitorMastered;
-                        return (
-                          <button
-                            className={`track-style-button ${selected ? 'is-selected' : ''}`}
-                            key={style}
-                            type="button"
-                            aria-pressed={selected}
-                            aria-label={`Use ${recipe.name}`}
-                            disabled={isStudioBusy}
-                            onClick={() => handleStyle(style)}
-                          >
-                            <span>
-                              <Icon />
-                            </span>
-                            <strong>{recipe.name}</strong>
-                          </button>
-                        );
-                      })}
-                    </fieldset>
-                    {isStudioBusy && (
-                      <output
-                        className="studio-busy-indicator"
-                        aria-live="polite"
-                      >
-                        <i aria-hidden="true" />
-                        Loading...
-                      </output>
-                    )}
-                  </div>
                   {track.demoIndex != null && (
                     <div className="demo-switch" aria-label="Switch Demo Track">
                       <span>Switch Demo Track</span>
@@ -2512,10 +2459,59 @@ export function ChampagneStudio() {
                       </div>
                     </div>
                   </div>
+                  <div className="track-style-controls transport-style-controls">
+                    <fieldset
+                      className="track-style-picker"
+                      aria-label="Signature mastering styles"
+                    >
+                      <legend className="sr-only">Signature styles</legend>
+                      {STYLE_IDS.map((style) => {
+                        const recipe = STYLE_RECIPES[style];
+                        const Icon = styleIcons[style];
+                        const readyRevision = [...revisions]
+                          .reverse()
+                          .find(
+                            (revision) =>
+                              revision.style === style &&
+                              revision.displayName === recipe.name,
+                          );
+                        const selected =
+                          activeRevision?.id === readyRevision?.id &&
+                          monitorMastered;
+                        return (
+                          <button
+                            className={`track-style-button ${selected ? 'is-selected' : ''}`}
+                            key={style}
+                            type="button"
+                            aria-pressed={selected}
+                            aria-label={`Use ${recipe.name}`}
+                            disabled={isStudioBusy}
+                            onClick={() => handleStyle(style)}
+                          >
+                            <span>
+                              <Icon />
+                            </span>
+                            <strong>{recipe.name}</strong>
+                          </button>
+                        );
+                      })}
+                    </fieldset>
+                    {isStudioBusy && (
+                      <output
+                        className="studio-busy-indicator"
+                        aria-live="polite"
+                      >
+                        <i aria-hidden="true" />
+                        Loading...
+                      </output>
+                    )}
+                  </div>
                 </div>
               </div>
 
-              <div className="surface brief-surface">
+              <div
+                className={`surface brief-surface ${webmcpAvailable ? 'is-chatgpt' : ''}`}
+              >
                 <div
                   className={`brief-header ${webmcpAvailable ? 'is-chatgpt' : ''}`}
                 >
@@ -2576,16 +2572,12 @@ export function ChampagneStudio() {
                     className="chatgpt-prompt-ideas"
                     aria-label="Prompt ideas for ChatGPT"
                   >
+                    <h2>Ask ChatGPT</h2>
                     <p>
-                      <strong>Ask ChatGPT:</strong>{' '}
                       <span key={suggestionIndex}>
-                        “{PROMPT_SUGGESTIONS[suggestionIndex]}”
+                        {PROMPT_SUGGESTIONS[suggestionIndex]}
                       </span>
                     </p>
-                    <small>
-                      To save your finished track, click Download WAV in the top
-                      bar.
-                    </small>
                   </div>
                 ) : (
                   <div className="composer">
@@ -2669,7 +2661,7 @@ export function ChampagneStudio() {
                 <strong>{connectionLabel}</strong>
                 <small>
                   {webmcpAvailable
-                    ? 'Ten Champagne actions are registered on this top-level page.'
+                    ? 'Champagne actions are registered on this top-level page.'
                     : 'Site tools are unavailable in this browser. Manual controls remain available.'}
                 </small>
               </span>
@@ -2687,8 +2679,7 @@ export function ChampagneStudio() {
               <p>
                 Allow ChatGPT to analyze, create custom styles, refine the
                 selected style, compare options, and control trim, fades, speed,
-                and prepare requested WAVs. Click Download WAV in the page
-                header to save a file.
+                and the final mastering direction.
               </p>
             </section>
             <section className="sheet-section">
@@ -2697,9 +2688,9 @@ export function ChampagneStudio() {
                 <Cable />
               </div>
               <blockquote>
-                “Create a vibrant, electric, and powerful master. Trim the first
+                Create a vibrant, electric, and powerful master. Trim the first
                 and last second, fade both ends for two seconds, and increase
-                track speed by 10%.”
+                track speed by 10%.
               </blockquote>
               <ol>
                 <li>
@@ -2753,7 +2744,6 @@ export function ChampagneStudio() {
                   'Set trim and fades',
                   'Set track speed',
                   'Select final master',
-                  'Prepare WAV for download',
                 ].map((tool) => (
                   <span key={tool}>
                     <Check />

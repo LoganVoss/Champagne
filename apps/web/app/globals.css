@@ -343,8 +343,10 @@ button {
   color: #dcb85f;
 }
 .brief-icon svg {
+  display: block;
   width: 14px;
   height: 14px;
+  transform: translateY(1px);
 }
 .suggestion-chip {
   border: 1px solid rgba(255, 255, 255, 0.075);
@@ -646,12 +648,17 @@ button {
   z-index: 2;
   display: grid;
   width: min(1180px, 100%);
+  min-height: calc(100vh - 72px);
+  min-height: calc(100dvh - 72px);
   grid-template-columns: minmax(0, 1fr);
   margin: 0 auto;
   padding: 22px 28px 34px;
 }
 .studio-main {
+  display: flex;
   min-width: 0;
+  min-height: 0;
+  flex-direction: column;
 }
 .studio-main > * + * {
   margin-top: 14px;
@@ -662,7 +669,7 @@ button {
 .track-bar {
   display: grid;
   min-height: 61px;
-  grid-template-columns: minmax(110px, 1fr) auto auto;
+  grid-template-columns: minmax(110px, 1fr) auto;
   align-items: center;
   gap: 12px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
@@ -704,13 +711,14 @@ button {
   display: flex;
   min-width: 0;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: center;
   gap: 8px;
 }
 .track-style-picker {
   display: grid;
   min-width: 0;
-  grid-template-columns: repeat(4, max-content);
+  flex: 1;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 5px;
   margin: 0;
   border: 0;
@@ -720,6 +728,7 @@ button {
   display: flex;
   height: 32px;
   align-items: center;
+  justify-content: center;
   gap: 6px;
   border: 1px solid rgba(255, 255, 255, 0.065);
   border-radius: 9px;
@@ -864,6 +873,13 @@ button {
   gap: 12px;
   padding-top: 12px;
 }
+.transport-style-controls {
+  position: relative;
+  width: auto;
+  margin: 14px -17px -15px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  padding: 12px 17px 13px;
+}
 .transport-row .source-switch {
   justify-self: start;
 }
@@ -962,6 +978,12 @@ button {
   overflow: hidden;
   padding: 16px 17px 13px;
 }
+.brief-surface.is-chatgpt {
+  display: flex;
+  min-height: clamp(240px, 32vh, 390px);
+  flex: 1;
+  flex-direction: column;
+}
 .brief-surface::after {
   content: '';
   position: absolute;
@@ -1030,31 +1052,31 @@ button {
   position: relative;
   z-index: 1;
   display: grid;
-  min-height: 112px;
+  min-height: 0;
+  flex: 1;
   align-content: center;
-  gap: 12px;
+  gap: 15px;
   margin-top: 0;
-  padding: 8px 32px 12px;
+  padding: 22px 40px 32px;
   text-align: center;
+}
+.chatgpt-prompt-ideas h2 {
+  margin: 0;
+  color: #e5c36d;
+  font-size: clamp(18px, 1.6vw, 22px);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
 }
 .chatgpt-prompt-ideas p {
   max-width: 900px;
   margin: 0 auto;
   color: rgba(255, 255, 255, 0.7);
-  font-size: clamp(14px, 1.25vw, 17px);
+  font-size: clamp(16px, 1.55vw, 20px);
   font-weight: 500;
   letter-spacing: -0.018em;
-  line-height: 1.5;
+  line-height: 1.55;
   text-wrap: balance;
-}
-.chatgpt-prompt-ideas p > strong {
-  color: #e5c36d;
-  font-weight: 690;
-}
-.chatgpt-prompt-ideas small {
-  color: rgba(255, 255, 255, 0.34);
-  font-size: 9px;
-  line-height: 1.45;
 }
 .composer-field {
   position: relative;
@@ -1540,25 +1562,8 @@ button {
   .track-bar {
     grid-template-columns: minmax(0, 1fr) auto;
   }
-  .track-identity {
-    grid-column: 1;
-    grid-row: 1;
-  }
-  .demo-switch {
-    grid-column: 2;
-    grid-row: 1;
-  }
-  .track-style-controls {
-    grid-column: 1 / -1;
-    grid-row: 2;
-    justify-content: stretch;
-  }
   .track-style-picker {
-    flex: 1;
     grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-  .track-style-button {
-    justify-content: center;
   }
 }
 
@@ -1611,6 +1616,9 @@ button {
   }
   .brief-header {
     align-items: flex-start;
+  }
+  .brief-header.is-chatgpt {
+    align-items: center;
   }
   .chatgpt-prompt-ideas {
     padding-right: 12px;
