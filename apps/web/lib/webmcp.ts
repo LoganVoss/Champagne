@@ -99,7 +99,7 @@ export interface StudioCommandApi {
     creator: 'webmcp';
   }) => Promise<unknown>;
   downloadMaster: (input: {
-    expectedStateVersion: number;
+    expectedStateVersion?: number;
     takeId?: string;
     creator: 'webmcp';
   }) => Promise<unknown>;
@@ -594,11 +594,15 @@ export async function registerChampagneTools(
       name: 'download_master',
       title: 'Download the current track',
       description:
-        'Use whenever the user explicitly says download, including inside a longer request. Immediately download the selected current master as a local 24-bit 48 kHz WAV. Preserve the current master, trim, fades, and speed; never remaster for a download-only request. When other actions were requested too, call this last with the newest returned stateVersion.',
+        'Always use when the user says download in any form, including inside a longer request or as the entire request. Immediately prepare and initiate a local 24-bit 48 kHz WAV download of the selected current master while preserving its trim, fades, and speed. Never remaster for a download-only request. Call this last after other requested actions. The version is optional and a stale version will not block an explicit download.',
       inputSchema: {
         type: 'object',
         properties: {
-          expectedStateVersion: stateVersion,
+          expectedStateVersion: {
+            ...stateVersion,
+            description:
+              'Optional version returned by get_studio_state or the prior action. A stale value does not block an explicit download.',
+          },
           takeId: {
             type: 'string',
             minLength: 1,
@@ -607,7 +611,6 @@ export async function registerChampagneTools(
               'Optional rendered style ID. Omit it to download the current selected master.',
           },
         },
-        required: ['expectedStateVersion'],
         additionalProperties: false,
       },
       annotations: {
@@ -619,7 +622,7 @@ export async function registerChampagneTools(
       execute: async (input) =>
         call((api) =>
           api.downloadMaster({
-            ...(input as { expectedStateVersion: number; takeId?: string }),
+            ...(input as { expectedStateVersion?: number; takeId?: string }),
             creator: 'webmcp',
           }),
         ),

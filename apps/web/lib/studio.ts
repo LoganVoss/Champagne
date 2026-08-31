@@ -815,6 +815,24 @@ export function interpretStudioPrompt(text: string): StudioPromptActions {
     },
   );
   removeMatches(
+    /\bfade\s+(?:the\s+)?first\s+(?:and|&)\s+(?:the\s+)?last\s+second\b/g,
+    () => {
+      edits.fadeInSeconds = 1;
+      edits.fadeOutSeconds = 1;
+    },
+  );
+  removeMatches(
+    new RegExp(
+      `\\bfade\\s+(?:the\\s+)?first\\s+(?:and|&)\\s+(?:the\\s+)?last\\s+(${DURATION_TOKEN})\\s*(?:seconds?|secs?|s)\\b`,
+      'g',
+    ),
+    (match) => {
+      const seconds = durationValue(match[1]);
+      edits.fadeInSeconds = seconds;
+      edits.fadeOutSeconds = seconds;
+    },
+  );
+  removeMatches(
     /\bfade(?:\s+it)?\s+in\s+(?:and|&)\s+(?:fade\s+)?(?:it\s+)?out\b/g,
     () => {
       edits.fadeInSeconds = 1;
@@ -934,17 +952,6 @@ export function interpretStudioPrompt(text: string): StudioPromptActions {
     /\b(?:master|mastering|remaster|style|preset|loud|louder|power|powerful|impactful|strong|warm|warmer|bright|brighter|dark|darker|punch|punchy|dynamic|dynamics|wide|wider|narrow|smooth|harsh|crisp|clear|airy|air|bass|low end|presence|glue|dense|density|analog|vintage|modern|club|festival|radio|streaming|cinematic|aggressive|gentle|polish|transparent|intimate|vocal|drums?|kick|energy|texture|feel|sound)\b/.test(
       remainder,
     );
-  const mentionsEditIntent =
-    /\b(?:cut|trim|remove|fade|speed|faster|slower|download)\b/.test(
-      normalized,
-    );
-  const cleanedRemainder = remainder
-    .replace(
-      /\b(?:and|then|also|please|now|just|only|apply|perform|do|it|this|the|a|an|to|on|at|for|track|song|audio|current|existing|version)\b/g,
-      ' ',
-    )
-    .replace(/[^a-z0-9]+/g, ' ')
-    .trim();
   const hasOperationalAction =
     recognizedOperation ||
     Object.values(edits).some((value) => value != null) ||
@@ -962,7 +969,7 @@ export function interpretStudioPrompt(text: string): StudioPromptActions {
   return {
     shouldMaster: hasOperationalAction
       ? masteringSignal
-      : !mentionsEditIntent && cleanedRemainder.length > 0,
+      : normalized.length > 0,
     shouldDownload,
     masteringText,
     speedPercent,

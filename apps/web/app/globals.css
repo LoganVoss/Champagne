@@ -175,8 +175,9 @@ button {
   height: 38px;
   flex: 0 0 auto;
   place-items: center;
+  overflow: hidden;
   border-radius: 12px;
-  background: linear-gradient(145deg, #f5dc94 0%, #d2a94d 62%, #8a6b29 100%);
+  background: #050505 url('/champagne-icon.png') center / cover no-repeat;
   box-shadow:
     0 8px 24px rgba(217, 179, 89, 0.24),
     inset 0 1px 0 rgba(255, 255, 255, 0.45);
@@ -466,9 +467,6 @@ button {
   color: inherit;
   text-align: left;
 }
-.brand-cluster .brand-mark svg {
-  width: 18px;
-}
 .brand-cluster > span:last-child {
   display: flex;
   flex-direction: column;
@@ -612,12 +610,21 @@ button {
   font-size: 14px;
   line-height: 1.65;
 }
+.chatgpt-start-copy {
+  max-width: 570px;
+  margin: 21px 0 0;
+  color: rgba(245, 220, 148, 0.78);
+  font-size: 12px;
+  font-weight: 620;
+  letter-spacing: 0.01em;
+  line-height: 1.55;
+}
 .empty-actions {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
   gap: 10px;
-  margin-top: 28px;
+  margin-top: 16px;
 }
 .gold-primary {
   height: 43px;
@@ -1011,6 +1018,43 @@ button {
   align-items: center;
   margin-top: 8px;
   padding: 10px 11px 10px 13px;
+}
+.chatgpt-prompt-ideas {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  min-height: 104px;
+  align-content: center;
+  justify-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  border: 1px solid rgba(217, 179, 89, 0.11);
+  border-radius: 14px;
+  background:
+    linear-gradient(145deg, rgba(217, 179, 89, 0.045), transparent 60%),
+    rgba(255, 255, 255, 0.015);
+  padding: 16px 48px;
+  text-align: center;
+}
+.chatgpt-prompt-ideas > span {
+  color: rgba(226, 194, 116, 0.52);
+  font-size: 8px;
+  font-weight: 760;
+  letter-spacing: 0.16em;
+}
+.chatgpt-prompt-ideas blockquote {
+  max-width: 760px;
+  margin: 0;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: clamp(14px, 1.2vw, 17px);
+  font-weight: 520;
+  letter-spacing: -0.018em;
+  line-height: 1.45;
+  text-wrap: balance;
+}
+.chatgpt-prompt-ideas small {
+  color: rgba(255, 255, 255, 0.3);
+  font-size: 9px;
 }
 .composer-field {
   position: relative;
@@ -1688,7 +1732,8 @@ button {
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .composer-suggestion {
+  .composer-suggestion,
+  .chatgpt-prompt-ideas blockquote {
     animation: promptCycle 0.42s cubic-bezier(0.2, 0.75, 0.2, 1) both;
   }
   @keyframes promptCycle {

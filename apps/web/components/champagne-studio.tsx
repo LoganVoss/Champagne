@@ -109,6 +109,13 @@ interface PlaybackRuntime {
   speedRate: number;
 }
 
+interface PreparedDownload {
+  url: string;
+  fileName: string;
+  stateVersion: number;
+  takeId: string | null;
+}
+
 const styleIcons = {
   full_power: Bolt,
   warm_presence: Flame,
@@ -151,15 +158,12 @@ const runViewTransition = async (update: () => void, waitForFinish = false) => {
 };
 const USER_PRESETS_KEY = 'champagne.user-presets.v1';
 const PROMPT_SUGGESTIONS = [
-  'Club-loud, but keep the kick punchy.',
-  'Warm analog weight with a smooth top.',
-  'Crystal clear without sounding brittle.',
-  'Cinematic scale with natural dynamics.',
-  'Tighten the low end and bring the drums forward.',
-  'Dark, intimate, and expensive.',
-  'Open the stereo image and add a little air.',
-  'Radio-ready energy without crushing it.',
-  'Gentle polish—keep it transparent.',
+  'Keep this master, cut two seconds from each end, fade the first and last second, make it 35% faster, then download.',
+  'Master this loud, powerful, and punchy; cut three seconds from each end and fade it in and out.',
+  'Keep the current master, set the track to 75% speed, then download.',
+  'Give the vocals warm presence with a smooth top while preserving the dynamics.',
+  'Use a crisp, open baseline with tighter low end and a little more width.',
+  'Download the current track exactly as it is.',
 ];
 const DEMO_TRACKS = [
   {
@@ -255,6 +259,8 @@ export function ChampagneStudio() {
   const [isDropTargeted, setIsDropTargeted] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const downloadAnchorRef = useRef<HTMLAnchorElement>(null);
+  const preparedDownloadRef = useRef<PreparedDownload | null>(null);
   const composerFieldRef = useRef<HTMLDivElement>(null);
   const composerSuggestionTextRef = useRef<HTMLSpanElement>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -297,8 +303,8 @@ export function ChampagneStudio() {
       ? activeRevision.waveform
       : (track?.waveform ?? []);
   const isLoadingView = phase === 'analyzing' && !track;
-  const isStudioBusy = Boolean(track) &&
-    (phase === 'analyzing' || phase === 'rendering');
+  const isStudioBusy =
+    Boolean(track) && (phase === 'analyzing' || phase === 'rendering');
   const studioView = isLoadingView ? 'loading' : track ? 'studio' : 'selection';
   const presetPageCount = Math.max(1, Math.ceil(userPresets.length / 4));
   const visibleUserPresets = userPresets.slice(
@@ -444,34 +450,34 @@ export function ChampagneStudio() {
     [startPlayback],
   );
 
-  const applyPlaybackSpeed = useCallback((
-    requestedPercent: number,
-    enabled = true,
-  ) => {
-    const nextPercent = round(clamp(requestedPercent, 50, 150), 1);
-    const nextRate = nextPercent / 100;
-    const playback = playbackRef.current;
-    if (playback) {
-      const now = playback.context.currentTime;
-      const position = clamp(
-        playback.offset + (now - playback.startedAt) * playback.speedRate,
-        runtimeRef.current.trim.startSeconds,
-        runtimeRef.current.trim.endSeconds,
-      );
-      playback.source.playbackRate.cancelScheduledValues(now);
-      playback.source.playbackRate.setValueAtTime(nextRate, now);
-      playback.offset = position;
-      playback.startedAt = now;
-      playback.speedRate = nextRate;
-      setCurrentTime(position);
-    }
-    runtimeRef.current.speedPercent = nextPercent;
-    runtimeRef.current.speedEnabled = enabled;
-    setSpeedPercent(nextPercent);
-    setSpeedEnabled(enabled);
-    setExportReadyId(null);
-    return nextPercent;
-  }, []);
+  const applyPlaybackSpeed = useCallback(
+    (requestedPercent: number, enabled = true) => {
+      const nextPercent = round(clamp(requestedPercent, 50, 150), 1);
+      const nextRate = nextPercent / 100;
+      const playback = playbackRef.current;
+      if (playback) {
+        const now = playback.context.currentTime;
+        const position = clamp(
+          playback.offset + (now - playback.startedAt) * playback.speedRate,
+          runtimeRef.current.trim.startSeconds,
+          runtimeRef.current.trim.endSeconds,
+        );
+        playback.source.playbackRate.cancelScheduledValues(now);
+        playback.source.playbackRate.setValueAtTime(nextRate, now);
+        playback.offset = position;
+        playback.startedAt = now;
+        playback.speedRate = nextRate;
+        setCurrentTime(position);
+      }
+      runtimeRef.current.speedPercent = nextPercent;
+      runtimeRef.current.speedEnabled = enabled;
+      setSpeedPercent(nextPercent);
+      setSpeedEnabled(enabled);
+      setExportReadyId(null);
+      return nextPercent;
+    },
+    [],
+  );
 
   useEffect(() => {
     if (!isPlaying) return;
@@ -619,7 +625,7 @@ export function ChampagneStudio() {
     observer.observe(field);
     observer.observe(suggestion);
     return () => observer.disconnect();
-  }, [brief, suggestionIndex, track]);
+  }, [brief, suggestionIndex, track, webmcpAvailable]);
 
   useEffect(() => {
     setPresetPage((current) =>
@@ -1537,6 +1543,35 @@ export function ChampagneStudio() {
           message: 'That mastering style is not available.',
         };
       const styleName = revision?.displayName ?? 'Original Edit';
+      const selectedTakeId = revision?.id ?? null;
+      const currentVersion = stateVersionRef.current;
+      const prepared = preparedDownloadRef.current;
+      const anchor = downloadAnchorRef.current;
+      if (
+        prepared &&
+        anchor &&
+        prepared.stateVersion === currentVersion &&
+        prepared.takeId === selectedTakeId
+      ) {
+        anchor.href = prepared.url;
+        anchor.download = prepared.fileName;
+        anchor.click();
+        addReceipt({
+          creator: input.creator,
+          title: 'Download initiated',
+          detail: `${styleName} · ${runtimeRef.current.speedPercent}% · 24-bit / 48 kHz WAV`,
+          revisionId: revision?.id,
+        });
+        return {
+          ok: true,
+          downloadInitiated: true,
+          fileName: prepared.fileName,
+          stateVersion: currentVersion,
+          takeId: selectedTakeId,
+          speedPercent: runtimeRef.current.speedPercent,
+          summary: `${styleName} download initiated without remastering.`,
+        };
+      }
       exportBusyRef.current = true;
       setIsExporting(true);
       try {
@@ -1546,25 +1581,40 @@ export function ChampagneStudio() {
           runtimeRef.current.speedPercent,
         );
         const url = URL.createObjectURL(blob);
-        const anchor = document.createElement('a');
-        anchor.href = url;
-        anchor.download = safeDownloadName(sourceTrack.name, styleName);
-        document.body.appendChild(anchor);
-        anchor.click();
-        anchor.remove();
-        setTimeout(() => URL.revokeObjectURL(url), 30_000);
+        const fileName = safeDownloadName(sourceTrack.name, styleName);
+        const previous = preparedDownloadRef.current;
+        preparedDownloadRef.current = {
+          url,
+          fileName,
+          stateVersion: currentVersion,
+          takeId: selectedTakeId,
+        };
+        const persistentAnchor = downloadAnchorRef.current;
+        if (!persistentAnchor) {
+          URL.revokeObjectURL(url);
+          preparedDownloadRef.current = previous;
+          throw new Error('The local download control is unavailable.');
+        }
+        persistentAnchor.href = url;
+        persistentAnchor.download = fileName;
+        persistentAnchor.click();
+        if (previous && previous.url !== url) {
+          URL.revokeObjectURL(previous.url);
+        }
         addReceipt({
           creator: input.creator,
-          title: 'Track downloaded',
+          title: 'Download initiated',
           detail: `${styleName} · ${runtimeRef.current.speedPercent}% · 24-bit / 48 kHz WAV`,
           revisionId: revision?.id,
         });
         return {
           ok: true,
-          downloaded: true,
-          takeId: revision?.id ?? null,
+          downloadInitiated: true,
+          fileName,
+          stateVersion: currentVersion,
+          takeId: selectedTakeId,
           speedPercent: runtimeRef.current.speedPercent,
-          summary: `${styleName} downloaded without remastering.`,
+          summary: `${styleName} download initiated without remastering.`,
         };
       } catch (error) {
         const message =
@@ -1583,7 +1633,7 @@ export function ChampagneStudio() {
 
   const downloadMasterCommand = useCallback(
     async (input: {
-      expectedStateVersion: number;
+      expectedStateVersion?: number;
       takeId?: string;
       creator: Creator;
     }) => {
@@ -1592,13 +1642,6 @@ export function ChampagneStudio() {
           ok: false,
           code: 'AGENT_PAUSED',
           message: 'ChatGPT control is paused in Champagne.',
-        };
-      if (input.expectedStateVersion !== stateVersionRef.current)
-        return {
-          ok: false,
-          code: 'STALE_STATE',
-          message: 'Call get_studio_state and retry.',
-          currentStateVersion: stateVersionRef.current,
         };
       if (input.creator === 'webmcp')
         markWebMCP('Downloading the current track by explicit request');
@@ -1788,6 +1831,26 @@ export function ChampagneStudio() {
       cleanup();
     };
   }, []);
+
+  useEffect(() => {
+    const prepared = preparedDownloadRef.current;
+    if (!prepared || prepared.stateVersion === stateVersion) return;
+    URL.revokeObjectURL(prepared.url);
+    preparedDownloadRef.current = null;
+    const anchor = downloadAnchorRef.current;
+    if (anchor) {
+      anchor.removeAttribute('href');
+      anchor.removeAttribute('download');
+    }
+  }, [stateVersion]);
+
+  useEffect(
+    () => () => {
+      const prepared = preparedDownloadRef.current;
+      if (prepared) URL.revokeObjectURL(prepared.url);
+    },
+    [],
+  );
 
   const selectRevision = useCallback(
     (id: string) => {
@@ -2019,16 +2082,6 @@ export function ChampagneStudio() {
         creator: 'brief',
       });
     }
-    if (
-      !actions.shouldMaster &&
-      !hasEdits &&
-      actions.speedPercent == null &&
-      !actions.shouldDownload
-    ) {
-      setNotice(
-        'Tell Champagne how to master, trim, fade, change speed, or download the current track.',
-      );
-    }
     setBrief('');
   }, [
     addReceipt,
@@ -2228,9 +2281,7 @@ export function ChampagneStudio() {
               onClick={returnHome}
               aria-label="Go to Champagne home"
             >
-              <span className="brand-mark">
-                <AudioWaveform />
-              </span>
+              <span className="brand-mark" aria-hidden="true" />
               <span>
                 <span className="brand-wordmark">CHAMPAGNE</span>
                 <span className="brand-subtitle">MASTERING STUDIO</span>
@@ -2287,6 +2338,16 @@ export function ChampagneStudio() {
             event.currentTarget.value = '';
           }}
         />
+        <a
+          ref={downloadAnchorRef}
+          className="sr-only"
+          href="#download"
+          download
+          aria-hidden="true"
+          tabIndex={-1}
+        >
+          Prepared Champagne download
+        </a>
 
         {isLoadingView ? (
           <section className="simple-loading" aria-label="Processing audio">
@@ -2305,6 +2366,9 @@ export function ChampagneStudio() {
                 AI guides the physics behind Champagne&apos;s mastering engine.
                 Clock every take, compare original and mastered versions, then
                 download your masterpiece.
+              </p>
+              <p className="chatgpt-start-copy">
+                Open Champagne in the ChatGPT app web browser to get started.
               </p>
               <div className="empty-actions">
                 <Button
@@ -2480,9 +2544,7 @@ export function ChampagneStudio() {
                             aria-label="Enable track speed control"
                           />
                         </div>
-                        <strong className="speed-value">
-                          {speedPercent}%
-                        </strong>
+                        <strong className="speed-value">{speedPercent}%</strong>
                         <div
                           className="speed-slider-wrap"
                           data-disabled={!speedEnabled}
@@ -2519,102 +2581,108 @@ export function ChampagneStudio() {
                       <WandSparkles />
                     </span>
                     <span>
-                      <strong>Mastering Magic</strong>
+                      <strong>
+                        {webmcpAvailable
+                          ? 'Try with ChatGPT'
+                          : 'Mastering Magic'}
+                      </strong>
                     </span>
                   </div>
                   <div className="brief-header-tools">
-                    {isStudioBusy && (
-                      <output
-                        className="studio-busy-indicator"
-                        aria-live="polite"
-                      >
-                        <i aria-hidden="true" />
-                        {phase === 'rendering'
-                          ? 'Creating preview'
-                          : 'Switching track'}
-                      </output>
-                    )}
                     <Dialog>
-                    <DialogTrigger
-                      render={
-                        <button
-                          className="mastering-info-button"
-                          type="button"
-                          aria-label="How Champagne Works with WebMCP"
-                        />
-                      }
-                    >
-                      <Info />
-                    </DialogTrigger>
-                    <DialogContent className="mastering-info-dialog sm:max-w-[560px]">
-                      <DialogHeader>
-                        <DialogTitle>
-                          How Champagne Works with WebMCP
-                        </DialogTitle>
-                        <DialogDescription>
-                          Four proven mastering styles give every request a safe
-                          baseline.
-                        </DialogDescription>
-                      </DialogHeader>
-                      <div className="mastering-info-copy">
-                        <p>
-                          ChatGPT reads your direction, chooses the closest
-                          signature, then applies bounded refinements across
-                          tone, punch, dynamics, width, density, and smoothness.
-                          That turns a reliable baseline into a track-specific
-                          masterpiece without pushing the engine outside its
-                          approved range.
-                        </p>
-                        <p className="mastering-info-close">
-                          <strong>
-                            Every song needs a slightly different touch.
-                          </strong>{' '}
-                          That&apos;s where WebMCP makes the difference.
-                        </p>
-                      </div>
-                    </DialogContent>
+                      <DialogTrigger
+                        render={
+                          <button
+                            className="mastering-info-button"
+                            type="button"
+                            aria-label="How Champagne Works with WebMCP"
+                          />
+                        }
+                      >
+                        <Info />
+                      </DialogTrigger>
+                      <DialogContent className="mastering-info-dialog sm:max-w-[560px]">
+                        <DialogHeader>
+                          <DialogTitle>
+                            How Champagne Works with WebMCP
+                          </DialogTitle>
+                          <DialogDescription>
+                            Four proven mastering styles give every request a
+                            safe baseline.
+                          </DialogDescription>
+                        </DialogHeader>
+                        <div className="mastering-info-copy">
+                          <p>
+                            ChatGPT reads your direction, chooses the closest
+                            signature, then applies bounded refinements across
+                            tone, punch, dynamics, width, density, and
+                            smoothness. That turns a reliable baseline into a
+                            track-specific masterpiece without pushing the
+                            engine outside its approved range.
+                          </p>
+                          <p className="mastering-info-close">
+                            <strong>
+                              Every song needs a slightly different touch.
+                            </strong>{' '}
+                            That&apos;s where WebMCP makes the difference.
+                          </p>
+                        </div>
+                      </DialogContent>
                     </Dialog>
                   </div>
                 </div>
 
-                <div className="composer">
-                  <div className="composer-field" ref={composerFieldRef}>
-                    {!brief && (
-                      <div
-                        className="composer-suggestion"
-                        key={suggestionIndex}
-                        aria-hidden="true"
-                      >
-                        <span ref={composerSuggestionTextRef}>
-                          {PROMPT_SUGGESTIONS[suggestionIndex]}
-                        </span>
-                      </div>
-                    )}
-                    <Textarea
-                      data-empty={!brief}
-                      value={brief}
-                      onChange={(event) => setBrief(event.target.value)}
-                      onKeyDown={(event) => {
-                        if (event.key === 'Enter' && !event.shiftKey) {
-                          event.preventDefault();
-                          void submitBrief();
-                        }
-                      }}
-                      className="min-h-[76px] resize-none border-0 bg-transparent px-10 py-5 text-center font-sans text-[18px] leading-7 shadow-none focus-visible:ring-0"
-                      placeholder=""
-                      aria-label="Mastering Magic"
-                    />
-                  </div>
-                  <Button
-                    className="send-button"
-                    size="icon"
-                    aria-label="Create local preview"
-                    disabled={!brief.trim() || isStudioBusy}
-                    onClick={() => void submitBrief()}
+                {webmcpAvailable ? (
+                  <div
+                    className="chatgpt-prompt-ideas"
+                    aria-label="Prompt ideas for ChatGPT"
                   >
-                    <ArrowUp />
-                  </Button>
-                </div>
+                    <span>TRY ASKING CHATGPT</span>
+                    <blockquote key={suggestionIndex} aria-live="polite">
+                      “{PROMPT_SUGGESTIONS[suggestionIndex]}”
+                    </blockquote>
+                    <small>Type this in your ChatGPT conversation.</small>
+                  </div>
+                ) : (
+                  <div className="composer">
+                    <div className="composer-field" ref={composerFieldRef}>
+                      {!brief && (
+                        <div
+                          className="composer-suggestion"
+                          key={suggestionIndex}
+                          aria-hidden="true"
+                        >
+                          <span ref={composerSuggestionTextRef}>
+                            {PROMPT_SUGGESTIONS[suggestionIndex]}
+                          </span>
+                        </div>
+                      )}
+                      <Textarea
+                        data-empty={!brief}
+                        value={brief}
+                        onChange={(event) => setBrief(event.target.value)}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter' && !event.shiftKey) {
+                            event.preventDefault();
+                            void submitBrief();
+                          }
+                        }}
+                        className="min-h-[76px] resize-none border-0 bg-transparent px-10 py-5 text-center font-sans text-[18px] leading-7 shadow-none focus-visible:ring-0"
+                        placeholder=""
+                        aria-label="Mastering Magic"
+                      />
+                    </div>
+                    <Button
+                      className="send-button"
+                      size="icon"
+                      aria-label="Create local preview"
+                      disabled={!brief.trim() || isStudioBusy}
+                      onClick={() => void submitBrief()}
+                    >
+                      <ArrowUp />
+                    </Button>
+                  </div>
+                )}
               </div>
 
               {notice && (
@@ -2632,6 +2700,15 @@ export function ChampagneStudio() {
               <div className="surface sidebar-card styles-card">
                 <div className="sidebar-heading">
                   <span>SIGNATURE STYLES</span>
+                  {isStudioBusy && (
+                    <output
+                      className="studio-busy-indicator"
+                      aria-live="polite"
+                    >
+                      <i aria-hidden="true" />
+                      Loading...
+                    </output>
+                  )}
                 </div>
                 <div className="styles-list">
                   {STYLE_IDS.map((style) => {
@@ -2804,8 +2881,7 @@ export function ChampagneStudio() {
               <p>
                 Allow ChatGPT to analyze, create custom styles, refine the
                 selected style, compare options, and control trim, fades, speed,
-                and explicitly requested downloads. Edit-only prompts preserve
-                the current master.
+                and explicitly requested downloads.
               </p>
             </section>
             <section className="sheet-section">
@@ -2828,9 +2904,7 @@ export function ChampagneStudio() {
                 </li>
                 <li>
                   <b>3</b>
-                  <span>
-                    Watch each audible custom style appear in User Presets.
-                  </span>
+                  <span>Hear the magic 🪄</span>
                 </li>
               </ol>
             </section>
