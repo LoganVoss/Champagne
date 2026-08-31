@@ -23,12 +23,14 @@ architecture notes, and verification checklist live in
 - Prompt-created custom styles and device-local User Presets
 - Reversible style revisions and real-time original/master switching
 - Shared command functions for manual controls, the Mastering Brief, and WebMCP
-- Eight imperative top-level WebMCP tools
+- Ten imperative top-level WebMCP tools
 - State-version conflict checks and visible action receipts
 - ChatGPT session pause control
 - Inspectable, redacted “What ChatGPT can see” payload
-- `Motorcycle` showcase track supplied by the artist for the demo
-- Human-only download boundary
+- Five artist-supplied showcase tracks with in-studio demo switching
+- Real-time and exported 0–200% speed control
+- Prompt routing that preserves the current master for cuts, fades, speed, and downloads
+- Explicit-user-intent download action
 - Champagne social-preview artwork and web metadata
 
 The web implementation is intentionally honest about its current boundary: it ports Champagne’s tested style identities and a real browser DSP path, while the full native-to-WebAssembly sample-parity program remains future engineering work.

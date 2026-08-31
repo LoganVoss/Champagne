@@ -50,8 +50,8 @@ metadata in **User Presets**. The preset never stores the source PCM buffer.
 ## 4. Put manual and agent actions on one command bus
 
 The React studio owns one command API for reading state, analyzing the track,
-creating/refining/contrasting takes, staging comparisons, changing trim/fades,
-and committing a take. Visible controls and the Mastering Magic prompt call
+creating/refining/contrasting takes, staging comparisons, changing trim/fades
+and speed, committing a take, and explicitly downloading it. Visible controls and the Mastering Magic prompt call
 these same functions that WebMCP calls. That keeps a click, a prompt, and an
 agent action audibly consistent.
 
@@ -62,7 +62,7 @@ silently undoing a person's newer listening decision.
 
 ## 5. Register semantic WebMCP tools
 
-The page registers eight imperative tools in `apps/web/lib/webmcp.ts` using the
+The page registers ten imperative tools in `apps/web/lib/webmcp.ts` using the
 page's `document.modelContext`:
 
 ```ts
@@ -91,18 +91,20 @@ await modelContext?.registerTool({
 
 The other registered tools are `get_studio_state`, `analyze_track`,
 `refine_mastering_take`, `create_variations`, `stage_comparison`,
-`set_trim_fades`, and `commit_master`. They are deliberately page-bound and
-typed. Tool responses expose compact state, receipts, and measurements—not
-audio bytes, waveform arrays, local filenames, or file paths.
+`set_trim_fades`, `set_track_speed`, `commit_master`, and `download_master`.
+They are deliberately page-bound and typed. Tool responses expose compact
+state, receipts, and measurements—not audio bytes, waveform arrays, local
+filenames, or file paths.
 
-`commit_master` stages the selected take. It never starts a download: a person
-must listen and click **Download WAV**. That boundary keeps the agent useful
-without making an irreversible or surprising external action.
+`commit_master` stages the selected take. `download_master` acts only after an
+explicit user request, while **Download WAV** keeps the same action available
+by hand. Edit-only prompts preserve the selected master rather than silently
+creating another render.
 
 ## 6. Verify the result like a product, not a mockup
 
 The web app is built with Vinext and checked with `npm run build` plus
-`npx tsc --noEmit`. The repeatable demo uses the bundled `Motorcycle` recording,
+`npx tsc --noEmit`. The repeatable demo uses five bundled showcase recordings,
 so a reviewer can hear the result without sharing a local file. The UI exposes
 the exact “What ChatGPT can see” payload and visible action receipts so the
 human can inspect the agent connection.

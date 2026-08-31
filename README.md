@@ -4,7 +4,7 @@ Champagne is a local-first mastering studio for music artists. It began as a
 native SwiftUI/macOS app and now has a browser build where a person and an AI
 agent can direct the same audible master together through WebMCP.
 
-**Live demo:** [champagne-mastering.vossx.chatgpt.site](https://champagne-mastering.vossx.chatgpt.site/)
+**Live demo:** [champagne.vossx.chatgpt.site](https://champagne.vossx.chatgpt.site/)
 
 **License:** [MIT](LICENSE) (the bundled showcase recording has separate asset
 notes in [ASSET_LICENSES.md](ASSET_LICENSES.md)).
@@ -15,25 +15,28 @@ Traditional audio tools make an artist translate a musical idea into knobs,
 then repeatedly stop and render to find out whether it worked. Champagne turns
 that conversation into an audible, reversible command loop:
 
-1. The artist loads a track (or clicks **Demo** for the bundled Motorcycle
-   recording).
+1. The artist loads a track (or clicks **Demo** and switches among five
+   bundled showcase recordings).
 2. The artist writes a natural-language brief in **Mastering Magic**.
 3. The browser extracts every useful cue, maps it to bounded mastering
    dimensions, renders a named custom style locally, and saves it in **User
    Presets**.
-4. ChatGPT can read a compact studio state, create/refine/compare takes, and
-   stage the next listening test with the same command functions.
-5. The artist listens to Original and Mastered, adjusts trim/fade curves, and
-   deliberately clicks **Download WAV**. Audio bytes never leave the device.
+4. ChatGPT can read compact studio state, create/refine/compare takes, and
+   control cuts, fades, speed, and explicitly requested downloads through the
+   same command functions.
+5. The artist listens to Original and Mastered, adjusts every edit in real
+   time, and downloads by click or direct prompt. Audio bytes never leave the
+   device.
 
 WebMCP is a natural fit because the agent is operating an audio instrument,
-not guessing which pixels to click. The page exposes eight typed, page-bound
+not guessing which pixels to click. The page exposes ten typed, page-bound
 tools (`get_studio_state`, `analyze_track`, `create_mastering_take`,
 `refine_mastering_take`, `create_variations`, `stage_comparison`,
-`set_trim_fades`, and `commit_master`). Every mutation uses the same command bus
-as the visible controls and an `expectedStateVersion`, so a stale agent action
-cannot silently overwrite a newer human decision. Tool results are compact and
-redacted: no PCM, waveform samples, local paths, or filenames are exposed.
+`set_trim_fades`, `set_track_speed`, `commit_master`, and `download_master`).
+Every mutation uses the same command bus as the visible controls and an
+`expectedStateVersion`, so a stale agent action cannot silently overwrite a
+newer human decision. Tool results are compact and redacted: no PCM, waveform
+samples, local paths, or filenames are exposed.
 
 ## Two implementations, one product idea
 
@@ -79,8 +82,8 @@ The migration is documented step by step in
 - implement a browser-native audible renderer and WAV encoder;
 - put manual controls, prompts, and agent actions behind one typed command bus;
 - register semantic page tools with `document.modelContext.registerTool`;
-- add state-version checks, visible receipts, redacted state, and a human-only
-  download boundary;
+- add state-version checks, visible receipts, redacted state, and an
+  explicit-user-intent download boundary;
 - verify the build, the browser flow, and the dated challenge delta.
 
 ## Challenge-period evidence
@@ -103,10 +106,10 @@ gitlink).
 
 ## Privacy and safety boundaries
 
-Decoding, analysis, rendering, playback, trim/fades, resampling, dither, and
-WAV encoding happen locally in the browser. The source file is never
-overwritten. WebMCP can prepare and compare a master, but only the person in
-the studio crosses the final download boundary.
+Decoding, analysis, rendering, playback, trim/fades, speed changes, resampling,
+dither, and WAV encoding happen locally in the browser. The source file is
+never overwritten. A download occurs only after a direct click or an explicit
+download request in the user’s prompt; edit-only requests never remaster.
 
 The project is open source under MIT; see [ASSET_LICENSES.md](ASSET_LICENSES.md)
 for the bundled audio and branding notes.

@@ -32,10 +32,18 @@ function handlePositions(trim: TrimSettings, duration: number, width: number) {
   const endX = duration > 0 ? (trim.endSeconds / duration) * width : width;
   const selectionWidth = Math.max(1, endX - startX);
   const seededGap = Math.min(32, selectionWidth * 0.23);
-  const fadeInActualX = duration > 0 ? ((trim.startSeconds + trim.fadeInSeconds) / duration) * width : startX;
-  const fadeOutActualX = duration > 0 ? ((trim.endSeconds - trim.fadeOutSeconds) / duration) * width : endX;
-  const fadeInX = trim.fadeInSeconds > 0.001 ? fadeInActualX : startX + seededGap;
-  const fadeOutX = trim.fadeOutSeconds > 0.001 ? fadeOutActualX : endX - seededGap;
+  const fadeInActualX =
+    duration > 0
+      ? ((trim.startSeconds + trim.fadeInSeconds) / duration) * width
+      : startX;
+  const fadeOutActualX =
+    duration > 0
+      ? ((trim.endSeconds - trim.fadeOutSeconds) / duration) * width
+      : endX;
+  const fadeInX =
+    trim.fadeInSeconds > 0.001 ? fadeInActualX : startX + seededGap;
+  const fadeOutX =
+    trim.fadeOutSeconds > 0.001 ? fadeOutActualX : endX - seededGap;
   return { startX, endX, fadeInX, fadeOutX };
 }
 
@@ -64,7 +72,10 @@ export function WaveformEditor({
       const ratio = window.devicePixelRatio || 1;
       const width = Math.max(1, canvas.clientWidth);
       const height = Math.max(1, canvas.clientHeight);
-      if (canvas.width !== Math.round(width * ratio) || canvas.height !== Math.round(height * ratio)) {
+      if (
+        canvas.width !== Math.round(width * ratio) ||
+        canvas.height !== Math.round(height * ratio)
+      ) {
         canvas.width = Math.round(width * ratio);
         canvas.height = Math.round(height * ratio);
       }
@@ -87,7 +98,11 @@ export function WaveformEditor({
         context.stroke();
       }
 
-      const { startX, endX, fadeInX, fadeOutX } = handlePositions(trim, duration, width);
+      const { startX, endX, fadeInX, fadeOutX } = handlePositions(
+        trim,
+        duration,
+        width,
+      );
       const center = height / 2;
       const barWidth = Math.max(1, width / Math.max(1, waveform.length) - 1.2);
 
@@ -96,26 +111,58 @@ export function WaveformEditor({
         const amplitude = Math.max(1.2, peak * (height * 0.36));
         const inSelection = x >= startX && x <= endX;
         context.fillStyle = mastered
-          ? inSelection ? 'rgba(220,185,97,0.88)' : 'rgba(126,103,53,0.32)'
-          : inSelection ? 'rgba(142,144,153,0.78)' : 'rgba(84,85,92,0.26)';
+          ? inSelection
+            ? 'rgba(220,185,97,0.88)'
+            : 'rgba(126,103,53,0.32)'
+          : inSelection
+            ? 'rgba(142,144,153,0.78)'
+            : 'rgba(84,85,92,0.26)';
         context.beginPath();
-        context.roundRect(x, center - amplitude, barWidth, amplitude * 2, Math.min(barWidth, 2));
+        context.roundRect(
+          x,
+          center - amplitude,
+          barWidth,
+          amplitude * 2,
+          Math.min(barWidth, 2),
+        );
         context.fill();
       });
 
       context.fillStyle = 'rgba(0,0,0,0.48)';
       context.fillRect(0, 0, Math.max(0, startX), height);
       context.fillRect(endX, 0, Math.max(0, width - endX), height);
-      context.fillStyle = mastered ? 'rgba(217,179,89,0.026)' : 'rgba(122,125,133,0.025)';
+      context.fillStyle = mastered
+        ? 'rgba(217,179,89,0.026)'
+        : 'rgba(122,125,133,0.025)';
       context.fillRect(startX, 0, Math.max(0, endX - startX), height);
-      context.strokeStyle = mastered ? 'rgba(217,179,89,0.6)' : 'rgba(142,144,153,0.55)';
-      context.strokeRect(startX + 0.5, 0.5, Math.max(1, endX - startX - 1), height - 1);
+      context.strokeStyle = mastered
+        ? 'rgba(217,179,89,0.6)'
+        : 'rgba(142,144,153,0.55)';
+      context.beginPath();
+      context.roundRect(
+        startX + 0.5,
+        0.5,
+        Math.max(1, endX - startX - 1),
+        height - 1,
+        12,
+      );
+      context.stroke();
 
-      const drawFadeCurve = (fromX: number, toX: number, curvature: number, reversed: boolean) => {
+      const drawFadeCurve = (
+        fromX: number,
+        toX: number,
+        curvature: number,
+        reversed: boolean,
+      ) => {
         const steps = 30;
         context.strokeStyle = 'rgba(205,207,214,0.58)';
         context.lineWidth = 1.15;
-        context.setLineDash(trim.fadeInSeconds <= .001 && !reversed || trim.fadeOutSeconds <= .001 && reversed ? [3, 3] : []);
+        context.setLineDash(
+          (trim.fadeInSeconds <= 0.001 && !reversed) ||
+            (trim.fadeOutSeconds <= 0.001 && reversed)
+            ? [3, 3]
+            : [],
+        );
         context.beginPath();
         for (let step = 0; step <= steps; step += 1) {
           const progress = step / steps;
@@ -133,30 +180,71 @@ export function WaveformEditor({
       drawFadeCurve(startX, fadeInX, trim.fadeInCurve, false);
       drawFadeCurve(fadeOutX, endX, trim.fadeOutCurve, true);
 
-      const drawHandle = (x: number, label: string, primary: boolean, active: boolean) => {
-        context.fillStyle = primary ? '#d9b359' : active ? '#f0f0f3' : 'rgba(195,197,204,0.72)';
+      const drawHandle = (
+        x: number,
+        label: string,
+        primary: boolean,
+        active: boolean,
+        curve?: number,
+      ) => {
+        context.fillStyle = primary
+          ? '#d9b359'
+          : active
+            ? '#f0f0f3'
+            : 'rgba(195,197,204,0.72)';
         context.fillRect(x - 1, 0, primary ? 2 : 1.25, height);
-        context.fillStyle = primary ? '#d9b359' : active ? '#ececf0' : '#686971';
+        context.fillStyle = primary
+          ? '#d9b359'
+          : active
+            ? '#ececf0'
+            : '#686971';
         const boxWidth = primary ? 28 : 38;
         const boxX = clamp(x - boxWidth / 2, 2, width - boxWidth - 2);
+        const boxY = primary
+          ? height - 18
+          : clamp(
+              4 + ((1 - (curve ?? 1 / 3)) / 2) * (height - 22),
+              4,
+              height - 18,
+            );
         context.beginPath();
-        context.roundRect(boxX, primary ? height - 18 : 4, boxWidth, 14, 4);
+        context.roundRect(boxX, boxY, boxWidth, 14, 4);
         context.fill();
-        context.fillStyle = primary ? '#17130b' : active ? '#17171b' : '#eeeef2';
+        context.fillStyle = primary
+          ? '#17130b'
+          : active
+            ? '#17171b'
+            : '#eeeef2';
         context.font = '700 7px ui-monospace, monospace';
         context.textAlign = 'center';
         context.textBaseline = 'middle';
-        context.fillText(label, boxX + boxWidth / 2, primary ? height - 11 : 11);
+        context.fillText(label, boxX + boxWidth / 2, boxY + 7);
       };
 
       const activeTarget = dragRef.current?.target;
       drawHandle(startX, 'CUT', true, activeTarget === 'trimStart');
       drawHandle(endX, 'CUT', true, activeTarget === 'trimEnd');
-      drawHandle(fadeInX, 'FADE IN', false, activeTarget === 'fadeIn');
-      drawHandle(fadeOutX, 'FADE OUT', false, activeTarget === 'fadeOut');
+      drawHandle(
+        fadeInX,
+        'FADE IN',
+        false,
+        activeTarget === 'fadeIn',
+        trim.fadeInCurve,
+      );
+      drawHandle(
+        fadeOutX,
+        'FADE OUT',
+        false,
+        activeTarget === 'fadeOut',
+        trim.fadeOutCurve,
+      );
 
-      if (dragRef.current?.axis === 'vertical' && (activeTarget === 'fadeIn' || activeTarget === 'fadeOut')) {
-        const curve = activeTarget === 'fadeIn' ? trim.fadeInCurve : trim.fadeOutCurve;
+      if (
+        dragRef.current?.axis === 'vertical' &&
+        (activeTarget === 'fadeIn' || activeTarget === 'fadeOut')
+      ) {
+        const curve =
+          activeTarget === 'fadeIn' ? trim.fadeInCurve : trim.fadeOutCurve;
         const x = activeTarget === 'fadeIn' ? fadeInX : fadeOutX;
         const label = `CURVE ${curve >= 0 ? '+' : ''}${Math.round(curve * 100)}`;
         context.fillStyle = 'rgba(12,12,16,.88)';
@@ -168,7 +256,8 @@ export function WaveformEditor({
         context.fillText(label, clamp(x, 38, width - 38), 34);
       }
 
-      const playheadX = duration > 0 ? clamp((currentTime / duration) * width, 0, width) : 0;
+      const playheadX =
+        duration > 0 ? clamp((currentTime / duration) * width, 0, width) : 0;
       context.strokeStyle = '#f5dc94';
       context.lineWidth = 1.25;
       context.shadowColor = 'rgba(245,220,148,0.6)';
@@ -212,7 +301,8 @@ export function WaveformEditor({
     const nearest = targets
       .map(([target, x]) => [target, Math.abs(x - position.x)] as const)
       .sort((a, b) => a[1] - b[1])[0];
-    const target: DragTarget = nearest && nearest[1] <= 22 ? nearest[0] : 'scrub';
+    const target: DragTarget =
+      nearest && nearest[1] <= 22 ? nearest[0] : 'scrub';
     dragRef.current = {
       target,
       startX: position.x,
@@ -223,7 +313,9 @@ export function WaveformEditor({
     canvasRef.current?.setPointerCapture(event.pointerId);
     if (target === 'scrub') {
       const seconds = (position.x / position.width) * duration;
-      propsRef.current.onSeek(clamp(seconds, currentTrim.startSeconds, currentTrim.endSeconds));
+      propsRef.current.onSeek(
+        clamp(seconds, currentTrim.startSeconds, currentTrim.endSeconds),
+      );
     }
   };
 
@@ -233,13 +325,17 @@ export function WaveformEditor({
     if (!drag || !position || duration <= 0) return;
     const seconds = (position.x / position.width) * duration;
     if (drag.target === 'scrub') {
-      propsRef.current.onSeek(clamp(seconds, drag.startTrim.startSeconds, drag.startTrim.endSeconds));
+      propsRef.current.onSeek(
+        clamp(seconds, drag.startTrim.startSeconds, drag.startTrim.endSeconds),
+      );
       return;
     }
 
     const next = { ...drag.startTrim };
-    if (drag.target === 'trimStart') next.startSeconds = clamp(seconds, 0, next.endSeconds - 0.2);
-    if (drag.target === 'trimEnd') next.endSeconds = clamp(seconds, next.startSeconds + 0.2, duration);
+    if (drag.target === 'trimStart')
+      next.startSeconds = clamp(seconds, 0, next.endSeconds - 0.2);
+    if (drag.target === 'trimEnd')
+      next.endSeconds = clamp(seconds, next.startSeconds + 0.2, duration);
     const selection = next.endSeconds - next.startSeconds;
 
     if (drag.target === 'fadeIn' || drag.target === 'fadeOut') {
@@ -251,25 +347,47 @@ export function WaveformEditor({
       if (!drag.axis) return;
       if (drag.axis === 'horizontal') {
         const deltaSeconds = (dx / position.width) * duration;
-        const positions = handlePositions(drag.startTrim, duration, position.width);
-        const seededFadeIn = ((positions.fadeInX - positions.startX) / position.width) * duration;
-        const seededFadeOut = ((positions.endX - positions.fadeOutX) / position.width) * duration;
+        const positions = handlePositions(
+          drag.startTrim,
+          duration,
+          position.width,
+        );
+        const seededFadeIn =
+          ((positions.fadeInX - positions.startX) / position.width) * duration;
+        const seededFadeOut =
+          ((positions.endX - positions.fadeOutX) / position.width) * duration;
         if (drag.target === 'fadeIn') {
-          const base = drag.startTrim.fadeInSeconds > .001 ? drag.startTrim.fadeInSeconds : seededFadeIn;
-          next.fadeInSeconds = clamp(base + deltaSeconds, 0, selection * .45);
+          const base =
+            drag.startTrim.fadeInSeconds > 0.001
+              ? drag.startTrim.fadeInSeconds
+              : seededFadeIn;
+          next.fadeInSeconds = clamp(base + deltaSeconds, 0, selection * 0.45);
         } else {
-          const base = drag.startTrim.fadeOutSeconds > .001 ? drag.startTrim.fadeOutSeconds : seededFadeOut;
-          next.fadeOutSeconds = clamp(base - deltaSeconds, 0, selection * .45);
+          const base =
+            drag.startTrim.fadeOutSeconds > 0.001
+              ? drag.startTrim.fadeOutSeconds
+              : seededFadeOut;
+          next.fadeOutSeconds = clamp(base - deltaSeconds, 0, selection * 0.45);
         }
       } else {
         const curveDelta = -dy / Math.max(1, position.height * (2 / 3));
-        if (drag.target === 'fadeIn') next.fadeInCurve = clamp(drag.startTrim.fadeInCurve + curveDelta, -1, 1);
-        else next.fadeOutCurve = clamp(drag.startTrim.fadeOutCurve + curveDelta, -1, 1);
+        if (drag.target === 'fadeIn')
+          next.fadeInCurve = clamp(
+            drag.startTrim.fadeInCurve + curveDelta,
+            -1,
+            1,
+          );
+        else
+          next.fadeOutCurve = clamp(
+            drag.startTrim.fadeOutCurve + curveDelta,
+            -1,
+            1,
+          );
       }
     }
 
-    next.fadeInSeconds = clamp(next.fadeInSeconds, 0, selection * .45);
-    next.fadeOutSeconds = clamp(next.fadeOutSeconds, 0, selection * .45);
+    next.fadeInSeconds = clamp(next.fadeInSeconds, 0, selection * 0.45);
+    next.fadeOutSeconds = clamp(next.fadeOutSeconds, 0, selection * 0.45);
     propsRef.current.onTrimChange(next);
   };
 
@@ -287,7 +405,8 @@ export function WaveformEditor({
       onPointerMove={handlePointerMove}
       onPointerUp={(event) => {
         finishDrag();
-        if (canvasRef.current?.hasPointerCapture(event.pointerId)) canvasRef.current.releasePointerCapture(event.pointerId);
+        if (canvasRef.current?.hasPointerCapture(event.pointerId))
+          canvasRef.current.releasePointerCapture(event.pointerId);
       }}
       onPointerCancel={finishDrag}
       onLostPointerCapture={finishDrag}

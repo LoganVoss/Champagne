@@ -24,18 +24,19 @@ the right take.
 ## Solution
 
 Champagne turns a mastering session into a shared, audible conversation. A
-person loads a local track or clicks **Demo** to hear the bundled Motorcycle
-showcase. They write a brief in **Mastering Magic**. The browser extracts all
+person loads a local track or clicks **Demo** to switch among five bundled
+showcases. They write a brief in **Mastering Magic**. The browser extracts all
 useful cues, maps them to bounded musical dimensions, creates a named custom
 style, and renders an audible take locally. The person can switch Original and
-Mastered, compare reversible User Presets, adjust trim and curved fades, and
-click **Download WAV** when the result is ready.
+Mastered, compare reversible User Presets, adjust trim, curved fades, and
+speed, and download when the result is ready.
 
 ChatGPT can operate the same session through WebMCP: read compact state,
 analyze the track, create a take, refine one dimension, create variations,
-stage a comparison, set trim/fades, and commit a take for listening. The final
-download is intentionally human-only. The audio bytes, waveform samples,
-filename, and local path never leave the browser.
+stage a comparison, set trim/fades and speed, commit a take, and download after
+an explicit user request. Edit-only and download-only prompts preserve the
+current master. Audio bytes, waveform samples, filename, and local path never
+leave the browser.
 
 ## Why this is a strong WebMCP use case
 
@@ -67,7 +68,8 @@ audible state. In this build:
    feedback grounded in what they actually hear.
 5. ChatGPT can refine one dimension, create contrasting siblings, or stage a
    comparison without destroying the source or the previous take.
-6. The person sets the final trim/fade shape and chooses whether to download.
+6. The person or agent applies the requested trim, fade, and speed changes; a
+   download begins only after the person asks for one or clicks the button.
 
 That loop—semantic intent → local audible render → human listening → precise
 agent refinement—was difficult to make trustworthy with ordinary browser
@@ -76,7 +78,7 @@ automation.
 ## How WebMCP is implemented
 
 `apps/web/lib/webmcp.ts` checks for the page's `document.modelContext` and
-imperatively registers eight tools:
+imperatively registers ten tools:
 
 - `get_studio_state`
 - `analyze_track`
@@ -85,7 +87,9 @@ imperatively registers eight tools:
 - `create_variations`
 - `stage_comparison`
 - `set_trim_fades`
+- `set_track_speed`
 - `commit_master`
+- `download_master`
 
 Each tool has an explicit JSON input schema, safe bounds, read/write
 annotations, and an abort signal. `apps/web/components/champagne-studio.tsx`
@@ -123,11 +127,12 @@ reference implementation.
 - User Presets with more than one page of local takes and simple arrow
   navigation.
 - Original/Mastered A/B listening, real-time playback, trim handles, and
-  curved fade-in/fade-out handles.
-- Eight semantic WebMCP tools with state-version conflict checks and visible
+  curved fade-in/fade-out handles, plus 0–200% speed control.
+- Ten semantic WebMCP tools with state-version conflict checks and visible
   action receipts.
-- Bundled Motorcycle demo track, so reviewers do not need a local file.
-- Human-only **Download WAV** boundary; source audio is never overwritten.
+- Five bundled demo tracks, so reviewers do not need a local file.
+- Explicit-request download action; source audio is never overwritten and
+  edit-only prompts never trigger a remaster.
 
 ## Architecture
 
@@ -138,18 +143,19 @@ reference implementation.
 - `apps/web/lib/studio.ts` — prompt compiler, style model, state semantics.
 - `apps/web/lib/audio-engine.ts` — browser decode/analyze/render/export.
 - `apps/web/lib/webmcp.ts` — page-bound WebMCP registration and schemas.
-- `apps/web/public/motorcycle-demo.m4a` — bundled showcase audio.
+- `apps/web/public/` — five bundled showcase recordings and web artwork.
 
 ## Testing instructions
 
-1. Open the [live Champagne demo](https://champagne-mastering.vossx.chatgpt.site/)
+1. Open the [live Champagne demo](https://champagne.vossx.chatgpt.site/)
    in ChatGPT's in-app browser, or in Chrome 149+ with WebMCP enabled.
-2. Click **Demo** and wait for the bundled Motorcycle track to load.
+2. Click **Demo**, wait for Motorcycle to load, and try the demo-track arrows.
 3. Play Original, enter a brief such as “warm low-end weight and punchy drums,
    keep the top smooth,” and wait for the gold loading bar to complete.
 4. Play Mastered, switch between takes, and inspect the new named style in User
    Presets. Try a second prompt or ask ChatGPT to refine/create variations.
-5. Drag trim and fade handles, then click **Download WAV** only after listening.
+5. Prompt “keep this master, cut two seconds from each end, fade the first and
+   last second, set speed to 75%, then download.” Confirm no new master is rendered.
 6. Open the tools drawer and inspect the compact “What ChatGPT can see” payload.
 
 For a local run:
@@ -164,7 +170,7 @@ npx tsc --noEmit
 
 ## Public demo
 
-https://champagne-mastering.vossx.chatgpt.site/
+https://champagne.vossx.chatgpt.site/
 
 ## Public repository
 
@@ -185,7 +191,7 @@ Capture these frames for the final submission:
    Presets.
 3. Original/Mastered waveform and audible A/B state.
 4. ChatGPT site-tools drawer showing the semantic tool connection.
-5. Trim/fade handles and the human-only **Download WAV** boundary.
+5. Trim/fade handles, speed slider, and an explicitly requested download.
 
 ## Readiness and known limitations
 
@@ -213,7 +219,7 @@ them:
 - **App Status (28252):** Existing.
 - **If Existing, explain what updated during submission period (28253):** use
   the existing-vs-new summary from `docs/challenge-evidence.md`.
-- **Live URL (28254):** `https://champagne-mastering.vossx.chatgpt.site/`.
+- **Live URL (28254):** `https://champagne.vossx.chatgpt.site/`.
 - **Testing instructions (28255):** use the numbered flow above.
 - **URL to PUBLIC Code Repo (28256):** `https://github.com/LoganVoss/Champagne`.
 - **Agent(s) or client(s) tested (28257):** ChatGPT in-app browser; WebMCP-
@@ -227,7 +233,7 @@ them:
 
 The draft is written to make the four official criteria easy to verify:
 
-- **WebMCP Leverage:** eight non-trivial typed tools on one shared command
+- **WebMCP Leverage:** ten non-trivial typed tools on one shared command
   bus, with state/version safety and audible results.
 - **Execution:** runnable live site, bundled demo, local rendering, and clear
   setup instructions.

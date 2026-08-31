@@ -28,8 +28,8 @@ pre-existing baseline is the native macOS SwiftUI app: local AVFoundation/
 Accelerate mastering, four signatures, playback/A-B, trim/fades, and WAV
 export. The browser studio, local Web Audio renderer, Mastering Magic command
 surface, User Presets, shared command bus, WebMCP tools, visible receipts,
-redacted state, bundled showcase track, and human-only download boundary are
-the challenge-period additions.
+redacted state, bundled showcase tracks, real-time speed, targeted edit routing,
+and the explicit-user-intent download action are challenge-period additions.
 
 ## Dated code ledger
 
@@ -61,9 +61,9 @@ Before sharing the link with Devpost:
   metadata when queried without authentication.
 - [ ] The repo visibility is public when checked without a GitHub session.
 - [ ] The live URL loads without a private login or local-file dependency.
-- [ ] `Motorcycle` plays from the bundled asset by clicking **Demo**.
+- [ ] **Demo** loads Motorcycle and the arrow control switches among all five bundled tracks.
 - [ ] ChatGPT's in-app browser (or Chrome 149+ with WebMCP enabled) can inspect
-  the eight registered tools and complete a prompt → render → comparison flow.
+  the ten registered tools and complete prompt → render → targeted edit → download flows.
 - [ ] The video is public, under three minutes, and includes spoken audio.
 - [ ] No API keys, tokens, private paths, or local credentials are committed.
 
