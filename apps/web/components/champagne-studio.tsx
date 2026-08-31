@@ -86,7 +86,6 @@ import {
   type StudioPhase,
   type StyleId,
   type TrimSettings,
-  type UserPreset,
 } from '@/lib/studio';
 import { registerChampagneTools, type StudioCommandApi } from '@/lib/webmcp';
 
@@ -156,14 +155,17 @@ const runViewTransition = async (update: () => void, waitForFinish = false) => {
     if (!updated) update();
   }
 };
-const USER_PRESETS_KEY = 'champagne.user-presets.v1';
 const PROMPT_SUGGESTIONS = [
-  'Keep this master, cut two seconds from each end, fade the first and last second, make it 35% faster, then download.',
-  'Master this loud, powerful, and punchy; cut three seconds from each end and fade it in and out.',
-  'Keep the current master, set the track to 75% speed, then download.',
-  'Give the vocals warm presence with a smooth top while preserving the dynamics.',
-  'Use a crisp, open baseline with tighter low end and a little more width.',
-  'Download the current track exactly as it is.',
+  'Create a vibrant, electric, and powerful master. Trim the first second and the last second. Fade the start and finish for two seconds on each side. Increase track speed by 10%.',
+  'Create a polished master with smooth highs, tight lows, and lots of air. Trim the first two seconds and the last two seconds. Fade in the first second and fade out the last second.',
+  'Create a warm master with crisp highs, vibrant lows, and a punchy feel. Cut the first two seconds and fade out the last two seconds.',
+  'Create a modern pop master with high energy. Fade in the first two seconds and fade out the last two seconds.',
+  'Create a classic, punchy, dominant, and strong master. Cut the first five seconds and the last five seconds.',
+  'Create a relaxing, calm, and fluid master with a long five-second fade at each end.',
+  'Create a wide, cinematic master with clear vocals and controlled bass. Trim the first second, fade out the final three seconds, and slow the track by 5%.',
+  'Make this radio-ready: bright, punchy, and balanced. Cut two seconds from both ends and fade each side for one second.',
+  'Create a dark, intimate master with warm mids and soft highs. Fade in over four seconds and fade out over four seconds.',
+  'Give this a clean festival master with tight subs, wide energy, and smooth transients. Trim one second from each end and increase speed by 5%.',
 ];
 const DEMO_TRACKS = [
   {
@@ -245,8 +247,6 @@ export function ChampagneStudio() {
   const [, setIntentDisplay] = useState<InterpretedBrief | null>(null);
   const [, setActivity] = useState<ActivityReceipt[]>([]);
   const [comparisonIds, setComparisonIds] = useState<string[]>([]);
-  const [userPresets, setUserPresets] = useState<UserPreset[]>([]);
-  const [presetPage, setPresetPage] = useState(0);
   const [suggestionIndex, setSuggestionIndex] = useState(0);
   const [stateVersion, setStateVersion] = useState(0);
   const [webmcpAvailable, setWebmcpAvailable] = useState(false);
@@ -306,11 +306,6 @@ export function ChampagneStudio() {
   const isStudioBusy =
     Boolean(track) && (phase === 'analyzing' || phase === 'rendering');
   const studioView = isLoadingView ? 'loading' : track ? 'studio' : 'selection';
-  const presetPageCount = Math.max(1, Math.ceil(userPresets.length / 4));
-  const visibleUserPresets = userPresets.slice(
-    presetPage * 4,
-    presetPage * 4 + 4,
-  );
 
   const bumpStateVersion = useCallback(() => {
     const next = stateVersionRef.current + 1;
@@ -555,46 +550,6 @@ export function ChampagneStudio() {
   );
 
   useEffect(() => {
-    try {
-      const saved = window.localStorage.getItem(USER_PRESETS_KEY);
-      if (!saved) return;
-      const parsed = JSON.parse(saved) as Array<Partial<UserPreset>>;
-      if (!Array.isArray(parsed)) return;
-      const valid = parsed
-        .filter(
-          (item) =>
-            typeof item.id === 'string' &&
-            typeof item.name === 'string' &&
-            STYLE_IDS.includes(item.baseStyle as StyleId) &&
-            item.modifiers &&
-            typeof item.modifiers === 'object',
-        )
-        .map((item) => ({
-          id: item.id!,
-          name: sanitizePresetName(item.name!, item.description ?? ''),
-          baseStyle: item.baseStyle as StyleId,
-          modifiers: { ...DEFAULT_MODIFIERS, ...item.modifiers },
-          priorities: Array.isArray(item.priorities)
-            ? item.priorities.slice(0, 6)
-            : [],
-          constraints: Array.isArray(item.constraints)
-            ? item.constraints.slice(0, 6)
-            : [],
-          description:
-            typeof item.description === 'string'
-              ? item.description.slice(0, 180)
-              : 'Custom Champagne style.',
-          createdAt:
-            typeof item.createdAt === 'number' ? item.createdAt : Date.now(),
-        }))
-        .slice(0, 24);
-      setUserPresets(valid);
-    } catch {
-      // A malformed device-local preset cache should never block the studio.
-    }
-  }, []);
-
-  useEffect(() => {
     if (
       brief.trim() ||
       window.matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -604,7 +559,7 @@ export function ChampagneStudio() {
       setSuggestionIndex(
         (current) => (current + 1) % PROMPT_SUGGESTIONS.length,
       );
-    }, 3600);
+    }, 5200);
     return () => window.clearInterval(timer);
   }, [brief]);
 
@@ -626,12 +581,6 @@ export function ChampagneStudio() {
     observer.observe(suggestion);
     return () => observer.disconnect();
   }, [brief, suggestionIndex, track, webmcpAvailable]);
-
-  useEffect(() => {
-    setPresetPage((current) =>
-      Math.min(current, Math.max(0, Math.ceil(userPresets.length / 4) - 1)),
-    );
-  }, [userPresets.length]);
 
   const markWebMCP = useCallback(
     (action: string) => {
@@ -820,36 +769,6 @@ export function ChampagneStudio() {
     [loadDecodedTrack],
   );
 
-  const savePresetToDevice = useCallback((revision: MasterRevision) => {
-    const preset: UserPreset = {
-      id: makePlanHash(
-        revision.style,
-        revision.intent.modifiers,
-        'device-preset',
-      ),
-      name: sanitizePresetName(revision.displayName, revision.prompt),
-      baseStyle: revision.style,
-      modifiers: revision.intent.modifiers,
-      priorities: revision.intent.priorities,
-      constraints: revision.intent.constraints,
-      description: revision.summary,
-      createdAt: Date.now(),
-    };
-    setUserPresets((current) => {
-      const next = [
-        preset,
-        ...current.filter((item) => item.id !== preset.id),
-      ].slice(0, 24);
-      try {
-        window.localStorage.setItem(USER_PRESETS_KEY, JSON.stringify(next));
-      } catch {
-        /* Device storage may be unavailable. */
-      }
-      return next;
-    });
-    setPresetPage(0);
-  }, []);
-
   const makeModifiers = (input: {
     intensity?: number;
     priorities: string[];
@@ -1024,7 +943,6 @@ export function ChampagneStudio() {
         );
         setExportReadyId(null);
         setPhase('preview_ready');
-        if (input.creator !== 'manual') savePresetToDevice(revision);
         const nextVersion = bumpStateVersion();
         addReceipt({
           creator: input.creator,
@@ -1086,7 +1004,6 @@ export function ChampagneStudio() {
       bumpStateVersion,
       currentTime,
       markWebMCP,
-      savePresetToDevice,
       startPlayback,
       validateMutation,
     ],
@@ -1267,12 +1184,11 @@ export function ChampagneStudio() {
           (revision) => revision.id,
         );
         setPhase('preview_ready');
-        created.forEach(savePresetToDevice);
         const nextVersion = bumpStateVersion();
         addReceipt({
           creator: input.creator,
           title: `${created.length} custom styles ready`,
-          detail: 'Warm, open, and club-loud directions added to Your Styles.',
+          detail: 'Warm, open, and club-loud directions are ready to audition.',
           revisionId: created[0].id,
         });
         if (playbackRef.current)
@@ -1287,7 +1203,7 @@ export function ChampagneStudio() {
           stateVersion: nextVersion,
           takeIds: created.map((revision) => revision.id),
           styleNames: created.map((revision) => revision.displayName),
-          summary: `Created ${created.length} audible custom styles and added them to the style pane.`,
+          summary: `Created ${created.length} audible custom styles and selected the first direction.`,
           nextActions: [
             'stage_comparison',
             'refine_mastering_take',
@@ -1317,7 +1233,6 @@ export function ChampagneStudio() {
       bumpStateVersion,
       currentTime,
       markWebMCP,
-      savePresetToDevice,
       startPlayback,
       validateMutation,
     ],
@@ -1361,7 +1276,7 @@ export function ChampagneStudio() {
       addReceipt({
         creator: input.creator,
         title: 'Styles staged',
-        detail: `${unique.length} custom styles are ready in the mastering pane.`,
+        detail: `${unique.length} custom styles are grouped and the first is active.`,
       });
       const first = runtimeRef.current.revisions.find(
         (revision) => revision.id === unique[0],
@@ -1376,7 +1291,8 @@ export function ChampagneStudio() {
         ok: true,
         stateVersion: stateVersionRef.current,
         comparisonTakeIds: unique,
-        summary: 'The requested custom styles are ready in the mastering pane.',
+        summary:
+          'The requested custom styles are grouped and the first is active.',
       };
     },
     [addReceipt, currentTime, markWebMCP, startPlayback],
@@ -1547,6 +1463,7 @@ export function ChampagneStudio() {
       const currentVersion = stateVersionRef.current;
       const prepared = preparedDownloadRef.current;
       const anchor = downloadAnchorRef.current;
+      const requiresUserClick = input.creator !== 'manual';
       if (
         prepared &&
         anchor &&
@@ -1555,21 +1472,26 @@ export function ChampagneStudio() {
       ) {
         anchor.href = prepared.url;
         anchor.download = prepared.fileName;
-        anchor.click();
+        if (!requiresUserClick) anchor.click();
+        else setNotice('Your WAV is ready. Click Download WAV to save it.');
         addReceipt({
           creator: input.creator,
-          title: 'Download initiated',
+          title: requiresUserClick ? 'Download ready' : 'Download initiated',
           detail: `${styleName} · ${runtimeRef.current.speedPercent}% · 24-bit / 48 kHz WAV`,
           revisionId: revision?.id,
         });
         return {
           ok: true,
-          downloadInitiated: true,
+          downloadReady: true,
+          downloadInitiated: !requiresUserClick,
+          requiresUserClick,
           fileName: prepared.fileName,
           stateVersion: currentVersion,
           takeId: selectedTakeId,
           speedPercent: runtimeRef.current.speedPercent,
-          summary: `${styleName} download initiated without remastering.`,
+          summary: requiresUserClick
+            ? `${styleName} is ready. The user must click Download WAV in the page header to save it.`
+            : `${styleName} download initiated without remastering.`,
         };
       }
       exportBusyRef.current = true;
@@ -1597,24 +1519,29 @@ export function ChampagneStudio() {
         }
         persistentAnchor.href = url;
         persistentAnchor.download = fileName;
-        persistentAnchor.click();
+        if (!requiresUserClick) persistentAnchor.click();
+        else setNotice('Your WAV is ready. Click Download WAV to save it.');
         if (previous && previous.url !== url) {
           URL.revokeObjectURL(previous.url);
         }
         addReceipt({
           creator: input.creator,
-          title: 'Download initiated',
+          title: requiresUserClick ? 'Download ready' : 'Download initiated',
           detail: `${styleName} · ${runtimeRef.current.speedPercent}% · 24-bit / 48 kHz WAV`,
           revisionId: revision?.id,
         });
         return {
           ok: true,
-          downloadInitiated: true,
+          downloadReady: true,
+          downloadInitiated: !requiresUserClick,
+          requiresUserClick,
           fileName,
           stateVersion: currentVersion,
           takeId: selectedTakeId,
           speedPercent: runtimeRef.current.speedPercent,
-          summary: `${styleName} download initiated without remastering.`,
+          summary: requiresUserClick
+            ? `${styleName} is ready. The user must click Download WAV in the page header to save it.`
+            : `${styleName} download initiated without remastering.`,
         };
       } catch (error) {
         const message =
@@ -1644,7 +1571,7 @@ export function ChampagneStudio() {
           message: 'ChatGPT control is paused in Champagne.',
         };
       if (input.creator === 'webmcp')
-        markWebMCP('Downloading the current track by explicit request');
+        markWebMCP('Preparing the current track for Download WAV');
       return downloadCurrent(input);
     },
     [downloadCurrent, markWebMCP],
@@ -2126,39 +2053,6 @@ export function ChampagneStudio() {
     [createTakeCommand, selectRevision],
   );
 
-  const handleUserPreset = useCallback(
-    (preset: UserPreset) => {
-      const existing = [...runtimeRef.current.revisions]
-        .reverse()
-        .find(
-          (revision) =>
-            revision.displayName === preset.name &&
-            revision.style === preset.baseStyle &&
-            Object.keys(preset.modifiers).every(
-              (key) =>
-                revision.intent.modifiers[key as keyof MasteringModifiers] ===
-                preset.modifiers[key as keyof MasteringModifiers],
-            ),
-        );
-      if (existing) {
-        selectRevision(existing.id);
-        return;
-      }
-      void createTakeCommand({
-        expectedStateVersion: stateVersionRef.current,
-        baseStyle: preset.baseStyle,
-        priorities: preset.priorities,
-        constraints: preset.constraints,
-        modifiers: preset.modifiers,
-        customName: preset.name,
-        matchedDirections: [preset.name],
-        creator: 'manual',
-        prompt: `Loaded user preset: ${preset.name}`,
-      });
-    },
-    [createTakeCommand, selectRevision],
-  );
-
   const returnHome = useCallback(() => {
     loadRequestRef.current += 1;
     stopPlayback(false);
@@ -2318,7 +2212,7 @@ export function ChampagneStudio() {
                 >
                   <Download />
                   <span className="hidden sm:inline">
-                    {isExporting ? 'Downloading…' : 'Download WAV'}
+                    {isExporting ? 'Preparing WAV…' : 'Download WAV'}
                   </span>
                   <span className="sm:hidden">Download</span>
                 </Button>
@@ -2434,6 +2328,53 @@ export function ChampagneStudio() {
                     <span className="min-w-0">
                       <strong>{track.name}</strong>
                     </span>
+                  </div>
+                  <div className="track-style-controls">
+                    <fieldset
+                      className="track-style-picker"
+                      aria-label="Signature mastering styles"
+                    >
+                      <legend className="sr-only">Signature styles</legend>
+                      {STYLE_IDS.map((style) => {
+                        const recipe = STYLE_RECIPES[style];
+                        const Icon = styleIcons[style];
+                        const readyRevision = [...revisions]
+                          .reverse()
+                          .find(
+                            (revision) =>
+                              revision.style === style &&
+                              revision.displayName === recipe.name,
+                          );
+                        const selected =
+                          activeRevision?.id === readyRevision?.id &&
+                          monitorMastered;
+                        return (
+                          <button
+                            className={`track-style-button ${selected ? 'is-selected' : ''}`}
+                            key={style}
+                            type="button"
+                            aria-pressed={selected}
+                            aria-label={`Use ${recipe.name}`}
+                            disabled={isStudioBusy}
+                            onClick={() => handleStyle(style)}
+                          >
+                            <span>
+                              <Icon />
+                            </span>
+                            <strong>{recipe.name}</strong>
+                          </button>
+                        );
+                      })}
+                    </fieldset>
+                    {isStudioBusy && (
+                      <output
+                        className="studio-busy-indicator"
+                        aria-live="polite"
+                      >
+                        <i aria-hidden="true" />
+                        Loading...
+                      </output>
+                    )}
                   </div>
                   {track.demoIndex != null && (
                     <div className="demo-switch" aria-label="Switch Demo Track">
@@ -2575,18 +2516,18 @@ export function ChampagneStudio() {
               </div>
 
               <div className="surface brief-surface">
-                <div className="brief-header">
+                <div
+                  className={`brief-header ${webmcpAvailable ? 'is-chatgpt' : ''}`}
+                >
                   <div className="flex items-center gap-2.5">
                     <span className="brief-icon">
                       <WandSparkles />
                     </span>
-                    <span>
-                      <strong>
-                        {webmcpAvailable
-                          ? 'Try with ChatGPT'
-                          : 'Mastering Magic'}
-                      </strong>
-                    </span>
+                    {!webmcpAvailable && (
+                      <span>
+                        <strong>Mastering Magic</strong>
+                      </span>
+                    )}
                   </div>
                   <div className="brief-header-tools">
                     <Dialog>
@@ -2616,15 +2557,13 @@ export function ChampagneStudio() {
                             ChatGPT reads your direction, chooses the closest
                             signature, then applies bounded refinements across
                             tone, punch, dynamics, width, density, and
-                            smoothness. That turns a reliable baseline into a
-                            track-specific masterpiece without pushing the
-                            engine outside its approved range.
+                            smoothness.
                           </p>
                           <p className="mastering-info-close">
                             <strong>
                               Every song needs a slightly different touch.
                             </strong>{' '}
-                            That&apos;s where WebMCP makes the difference.
+                            That&apos;s where ChatGPT makes the difference.
                           </p>
                         </div>
                       </DialogContent>
@@ -2637,11 +2576,16 @@ export function ChampagneStudio() {
                     className="chatgpt-prompt-ideas"
                     aria-label="Prompt ideas for ChatGPT"
                   >
-                    <span>TRY ASKING CHATGPT</span>
-                    <blockquote key={suggestionIndex} aria-live="polite">
-                      “{PROMPT_SUGGESTIONS[suggestionIndex]}”
-                    </blockquote>
-                    <small>Type this in your ChatGPT conversation.</small>
+                    <p>
+                      <strong>Ask ChatGPT:</strong>{' '}
+                      <span key={suggestionIndex}>
+                        “{PROMPT_SUGGESTIONS[suggestionIndex]}”
+                      </span>
+                    </p>
+                    <small>
+                      To save your finished track, click Download WAV in the top
+                      bar.
+                    </small>
                   </div>
                 ) : (
                   <div className="composer">
@@ -2695,144 +2639,6 @@ export function ChampagneStudio() {
                 </div>
               )}
             </section>
-
-            <aside className="studio-sidebar">
-              <div className="surface sidebar-card styles-card">
-                <div className="sidebar-heading">
-                  <span>SIGNATURE STYLES</span>
-                  {isStudioBusy && (
-                    <output
-                      className="studio-busy-indicator"
-                      aria-live="polite"
-                    >
-                      <i aria-hidden="true" />
-                      Loading...
-                    </output>
-                  )}
-                </div>
-                <div className="styles-list">
-                  {STYLE_IDS.map((style) => {
-                    const recipe = STYLE_RECIPES[style];
-                    const Icon = styleIcons[style];
-                    const readyRevision = [...revisions]
-                      .reverse()
-                      .find(
-                        (revision) =>
-                          revision.style === style &&
-                          revision.displayName === recipe.name,
-                      );
-                    const selected =
-                      activeRevision?.id === readyRevision?.id &&
-                      monitorMastered;
-                    return (
-                      <button
-                        className={`style-row ${selected ? 'is-selected' : ''}`}
-                        key={style}
-                        type="button"
-                        aria-pressed={selected}
-                        onClick={() => handleStyle(style)}
-                      >
-                        <span className="style-glyph">
-                          <Icon />
-                        </span>
-                        <span className="min-w-0 flex-1 text-left">
-                          <strong>{recipe.name}</strong>
-                          <small>{recipe.subtitle}</small>
-                        </span>
-                        {selected ? (
-                          <span className="ready-mark">
-                            <Check />
-                          </span>
-                        ) : (
-                          <ChevronRight className="style-chevron" />
-                        )}
-                      </button>
-                    );
-                  })}
-                  {userPresets.length > 0 && (
-                    <>
-                      <div className="preset-divider">
-                        <span>USER PRESETS</span>
-                        {presetPageCount > 1 && (
-                          <div className="preset-nav">
-                            <button
-                              type="button"
-                              aria-label="Previous presets"
-                              disabled={presetPage === 0}
-                              onClick={() =>
-                                setPresetPage((page) => Math.max(0, page - 1))
-                              }
-                            >
-                              <ChevronLeft />
-                            </button>
-                            <button
-                              type="button"
-                              aria-label="More presets"
-                              disabled={presetPage >= presetPageCount - 1}
-                              onClick={() =>
-                                setPresetPage((page) =>
-                                  Math.min(presetPageCount - 1, page + 1),
-                                )
-                              }
-                            >
-                              <ChevronRight />
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                      {visibleUserPresets.map((preset) => {
-                        const rendered = [...revisions]
-                          .reverse()
-                          .find(
-                            (revision) =>
-                              revision.displayName === preset.name &&
-                              revision.style === preset.baseStyle &&
-                              Object.keys(preset.modifiers).every(
-                                (key) =>
-                                  revision.intent.modifiers[
-                                    key as keyof MasteringModifiers
-                                  ] ===
-                                  preset.modifiers[
-                                    key as keyof MasteringModifiers
-                                  ],
-                              ),
-                          );
-                        const selected =
-                          activeRevision?.id === rendered?.id &&
-                          monitorMastered;
-                        return (
-                          <button
-                            className={`style-row preset-row ${selected ? 'is-selected' : ''}`}
-                            key={preset.id}
-                            type="button"
-                            aria-pressed={selected}
-                            onClick={() => handleUserPreset(preset)}
-                          >
-                            <span className="style-glyph">
-                              <WandSparkles />
-                            </span>
-                            <span className="min-w-0 flex-1 text-left">
-                              <strong>{preset.name}</strong>
-                              <small>
-                                {STYLE_RECIPES[preset.baseStyle].name} baseline
-                                · Custom
-                              </small>
-                            </span>
-                            {selected ? (
-                              <span className="ready-mark">
-                                <Check />
-                              </span>
-                            ) : (
-                              <ChevronRight className="style-chevron" />
-                            )}
-                          </button>
-                        );
-                      })}
-                    </>
-                  )}
-                </div>
-              </div>
-            </aside>
           </div>
         )}
       </div>
@@ -2881,7 +2687,8 @@ export function ChampagneStudio() {
               <p>
                 Allow ChatGPT to analyze, create custom styles, refine the
                 selected style, compare options, and control trim, fades, speed,
-                and explicitly requested downloads.
+                and prepare requested WAVs. Click Download WAV in the page
+                header to save a file.
               </p>
             </section>
             <section className="sheet-section">
@@ -2890,8 +2697,9 @@ export function ChampagneStudio() {
                 <Cable />
               </div>
               <blockquote>
-                “Keep this master, cut two seconds from each end, fade the first
-                and last second, make it 35% faster, then download.”
+                “Create a vibrant, electric, and powerful master. Trim the first
+                and last second, fade both ends for two seconds, and increase
+                track speed by 10%.”
               </blockquote>
               <ol>
                 <li>
@@ -2905,6 +2713,10 @@ export function ChampagneStudio() {
                 <li>
                   <b>3</b>
                   <span>Hear the magic 🪄</span>
+                </li>
+                <li>
+                  <b>4</b>
+                  <span>Click Download WAV when you are ready to save.</span>
                 </li>
               </ol>
             </section>
@@ -2941,7 +2753,7 @@ export function ChampagneStudio() {
                   'Set trim and fades',
                   'Set track speed',
                   'Select final master',
-                  'Download on request',
+                  'Prepare WAV for download',
                 ].map((tool) => (
                   <span key={tool}>
                     <Check />

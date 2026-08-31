@@ -1,6 +1,6 @@
 # Champagne Web
 
-Champagne Web is a local-first, WebMCP-enabled mastering studio. A person or an agent can direct the same live mastering session, hear every result, switch among signature and custom styles, adjust trim, fades, and speed, and download a 24-bit / 48 kHz WAV after explicit user intent.
+Champagne Web is a local-first, WebMCP-enabled mastering studio. A person or an agent can direct the same live mastering session, hear every result, choose a signature baseline, adjust trim, fades, and speed, and prepare a 24-bit / 48 kHz WAV for an explicit user download.
 
 ## Run locally
 
@@ -19,7 +19,7 @@ The four Champagne signatures are safe engine baselines, not the limit of the pr
 - low end, presence, air, and width
 - glue, density, and smoothness
 
-Each direction creates a descriptively named custom style and saves its metadata in **User Presets** on that device. Audio buffers are never persisted with the preset. Champagne extracts every supported signal from the message; unfamiliar or metaphorical language receives a conservative adaptive finish instead of an error.
+Each direction creates and activates a descriptively named custom style for the current session. Champagne extracts every supported signal from the message; unfamiliar or metaphorical language receives a conservative adaptive finish instead of an error.
 
 ## WebMCP
 
@@ -38,7 +38,7 @@ The top-level studio page imperatively registers ten page-bound tools through `d
 
 Every tool calls the same command functions used by the manual style controls and on-page Mastering Magic. Mutations validate a current `expectedStateVersion`, update the visible studio, and return only after the UI has had time to commit. Mixed prompts are executed in order—mastering, trim/fades, speed, then download—while edit-only prompts preserve the current master. Speed is bounded to 50–150%; switching it off restores 100%.
 
-`commit_master` stages a style. `download_master` starts a download only when the user explicitly requests one; the same export remains available through **Download WAV**.
+`commit_master` stages a style. `download_master` prepares the current export only when the user explicitly requests one; browser security leaves the final save action on the visible **Download WAV** button.
 
 ## Privacy boundary
 
@@ -80,4 +80,4 @@ For WebMCP verification, use ChatGPT’s current built-in browser or WebMCP-enab
 - Choose and add a recognized open-source license before making the submission repository public.
 - Keep the deployed app free and available through the judging period.
 - Record a public demo under three minutes using music you own or are authorized to show.
-- Show the ChatGPT conversation calling site tools, custom styles appearing in User Presets, real-time original/master and speed changes, targeted edits that preserve the master, and an explicitly requested download.
+- Show the ChatGPT conversation calling site tools, the active custom style and compact signature controls, real-time original/master and speed changes, targeted edits that preserve the master, and the final **Download WAV** click.

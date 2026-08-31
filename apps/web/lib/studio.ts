@@ -487,17 +487,6 @@ export interface MasterRevision {
   planHash: string;
 }
 
-export interface UserPreset {
-  id: string;
-  name: string;
-  baseStyle: StyleId;
-  modifiers: MasteringModifiers;
-  priorities: string[];
-  constraints: string[];
-  description: string;
-  createdAt: number;
-}
-
 export interface TrimSettings {
   startSeconds: number;
   endSeconds: number;
@@ -654,6 +643,10 @@ export function interpretStudioPrompt(text: string): StudioPromptActions {
     .normalize('NFKC')
     .toLowerCase()
     .replace(/[’]/g, "'")
+    .replace(
+      /\b(zero|one|two|three|four|five|six|seven|eight|nine|ten|\d+(?:\.\d+)?)-seconds?\b/g,
+      '$1 seconds',
+    )
     .replace(/\s+/g, ' ')
     .trim();
   let remainder = normalized;
@@ -678,11 +671,11 @@ export function interpretStudioPrompt(text: string): StudioPromptActions {
   const shouldDownload = /\bdownload(?:ed|ing)?\b/.test(normalized);
   if (shouldDownload) {
     recognizedOperation = true;
-    remainder = remainder.replace(/\bdownload(?:ed|ing)?\b/g, ' ');
     remainder = remainder.replace(
-      /\b(?:(?:the|my|this)\s+)?(?:(?:current|existing|selected|active|final)\s+)?(?:master|mastered\s+track|track|song|audio|wav|file)\b/g,
+      /\bdownload(?:ed|ing)?\s+(?:(?:the|my|this)\s+)?(?:(?:current|existing|selected|active|final|finished)\s+)?(?:master(?:ed\s+track)?|track|song|audio|wav|file)\b/g,
       ' ',
     );
+    remainder = remainder.replace(/\bdownload(?:ed|ing)?\b/g, ' ');
   }
 
   let speedPercent: number | undefined;
@@ -729,6 +722,12 @@ export function interpretStudioPrompt(text: string): StudioPromptActions {
     },
   );
   removeMatches(
+    /\bslow\s+(?:the\s+)?(?:track|song|audio|it)\s+by\s+(\d+(?:\.\d+)?)\s*%(?!\d)/g,
+    (match) => {
+      speedPercent = clamp(100 - Number(match[1]), 50, 150);
+    },
+  );
+  removeMatches(
     /\b(?:make|set|change|play)?\s*(?:the\s+)?(?:track|song|audio)?\s*(\d+(?:\.\d+)?)\s*%\s*slower\b/g,
     (match) => {
       speedPercent = clamp(100 - Number(match[1]), 50, 150);
@@ -749,6 +748,13 @@ export function interpretStudioPrompt(text: string): StudioPromptActions {
     (match) => {
       edits.cutStartSeconds = durationValue(match[1]);
       edits.cutEndSeconds = durationValue(match[2]);
+    },
+  );
+  removeMatches(
+    /\b(?:cut|trim|remove)\s+(?:the\s+)?first\s+second\s+(?:and|&)\s+(?:(?:cut|trim|remove)\s+)?(?:the\s+)?(?:last|final)\s+second\b/g,
+    () => {
+      edits.cutStartSeconds = 1;
+      edits.cutEndSeconds = 1;
     },
   );
   removeMatches(
@@ -791,6 +797,50 @@ export function interpretStudioPrompt(text: string): StudioPromptActions {
     (match) => {
       edits.fadeInSeconds = durationValue(match[1]);
       edits.fadeOutSeconds = durationValue(match[2]);
+    },
+  );
+  removeMatches(
+    new RegExp(
+      `\\bfade\\s+(?:the\\s+)?(?:start|front)\\s+(?:and|&)\\s+(?:the\\s+)?(?:finish|end|back)(?:\\s+(?:for|over))?[\\s(:-]*(${DURATION_TOKEN})\\s*(?:seconds?|secs?|s)?\\s*(?:\\))?\\s*(?:(?:on|at|for)\\s+)?(?:each|both)\\s+(?:side|sides|end|ends)\\b`,
+      'g',
+    ),
+    (match) => {
+      const seconds = durationValue(match[1]);
+      edits.fadeInSeconds = seconds;
+      edits.fadeOutSeconds = seconds;
+    },
+  );
+  removeMatches(
+    new RegExp(
+      `\\b(?:a\\s+)?(?:long\\s+)?(${DURATION_TOKEN})\\s*(?:seconds?|secs?|s)\\s+fade\\s+(?:at|on|for)\\s+(?:each|both)\\s+(?:end|ends|side|sides)\\b`,
+      'g',
+    ),
+    (match) => {
+      const seconds = durationValue(match[1]);
+      edits.fadeInSeconds = seconds;
+      edits.fadeOutSeconds = seconds;
+    },
+  );
+  removeMatches(
+    new RegExp(
+      `\\b(?:a\\s+)?(?:long\\s+)?fade(?:\\s+it)?\\s+in\\s+(?:and|&)\\s+(?:fade\\s+)?(?:it\\s+)?out[\\s(:-]*(${DURATION_TOKEN})\\s*(?:seconds?|secs?|s)?\\s*(?:\\))?\\s*(?:(?:on|at|for)\\s+)?(?:each|both)\\s+(?:end|ends|side|sides)\\b`,
+      'g',
+    ),
+    (match) => {
+      const seconds = durationValue(match[1]);
+      edits.fadeInSeconds = seconds;
+      edits.fadeOutSeconds = seconds;
+    },
+  );
+  removeMatches(
+    new RegExp(
+      `\\bfade\\s+(?:the\\s+)?(?:each|both)\\s+(?:end|ends|side|sides)\\s+(?:for|over)\\s+(${DURATION_TOKEN})\\s*(?:seconds?|secs?|s)?`,
+      'g',
+    ),
+    (match) => {
+      const seconds = durationValue(match[1]);
+      edits.fadeInSeconds = seconds;
+      edits.fadeOutSeconds = seconds;
     },
   );
   removeMatches(
@@ -840,6 +890,13 @@ export function interpretStudioPrompt(text: string): StudioPromptActions {
     },
   );
   removeMatches(
+    /\bfade\s+(?:the\s+)?(?:start|front)\s+(?:and|&)\s+(?:the\s+)?(?:finish|end|back)\b/g,
+    () => {
+      edits.fadeInSeconds = 1;
+      edits.fadeOutSeconds = 1;
+    },
+  );
+  removeMatches(
     new RegExp(
       `\\b(?:cut|trim|remove)\\s+(${DURATION_TOKEN})\\s*(?:seconds?|secs?|s)\\s+(?:from|off)\\s+(?:the\\s+)?front\\s+(?:and|&)\\s+(?:the\\s+)?back\\b`,
       'g',
@@ -857,6 +914,15 @@ export function interpretStudioPrompt(text: string): StudioPromptActions {
       edits.cutEndSeconds = 1;
     },
   );
+  removeMatches(/\b(?:cut|trim|remove)\s+(?:the\s+)?first\s+second\b/g, () => {
+    edits.cutStartSeconds = 1;
+  });
+  removeMatches(
+    /\b(?:cut|trim|remove)\s+(?:the\s+)?(?:last|final)\s+second\b/g,
+    () => {
+      edits.cutEndSeconds = 1;
+    },
+  );
   removeMatches(
     new RegExp(
       `\\b(?:cut|trim|remove)\\s+(?:the\\s+)?(?:first|front|start)\\s+(${DURATION_TOKEN})\\s*(?:seconds?|secs?|s)?(?:\\s+(?:from|off|on)\\s+(?:the\\s+)?(?:front|start))?`,
@@ -868,7 +934,7 @@ export function interpretStudioPrompt(text: string): StudioPromptActions {
   );
   removeMatches(
     new RegExp(
-      `\\b(?:cut|trim|remove)\\s+(?:the\\s+)?(?:last|back|end)\\s+(${DURATION_TOKEN})\\s*(?:seconds?|secs?|s)?(?:\\s+(?:from|off|on)\\s+(?:the\\s+)?(?:back|end))?`,
+      `\\b(?:cut|trim|remove)\\s+(?:the\\s+)?(?:last|final|back|end)\\s+(${DURATION_TOKEN})\\s*(?:seconds?|secs?|s)?(?:\\s+(?:from|off|on)\\s+(?:the\\s+)?(?:back|end))?`,
       'g',
     ),
     (match) => {
@@ -934,7 +1000,7 @@ export function interpretStudioPrompt(text: string): StudioPromptActions {
   );
   removeMatches(
     new RegExp(
-      `\\bfade\\s+out(?:\\s+(?:the\\s+)?(?:last|back|end))?\\s+(${DURATION_TOKEN})\\s*(?:seconds?|secs?|s)?`,
+      `\\bfade\\s+out(?:\\s+(?:the\\s+)?(?:last|final|back|end))?\\s+(${DURATION_TOKEN})\\s*(?:seconds?|secs?|s)?`,
       'g',
     ),
     (match) => {
@@ -957,8 +1023,9 @@ export function interpretStudioPrompt(text: string): StudioPromptActions {
     Object.values(edits).some((value) => value != null) ||
     speedPercent != null;
   const masteringText = remainder
+    .replace(/[()]/g, ' ')
     .replace(
-      /\b(?:and|then|also)\b(?=\s*(?:(?:[,.;:&+-]\s*)|(?:\b(?:and|then|also)\b\s*))*$)/g,
+      /\b(?:and|then|also|with)\b(?=\s*(?:(?:[,.;:&+-]\s*)|(?:\b(?:and|then|also|with)\b\s*))*$)/g,
       ' ',
     )
     .replace(/(?:\s*[,;:&+-]\s*){2,}/g, ', ')

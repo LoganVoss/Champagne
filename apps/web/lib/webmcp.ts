@@ -307,7 +307,7 @@ export async function registerChampagneTools(
       name: 'refine_mastering_take',
       title: 'Refine a custom style',
       description:
-        'Create a reversible child style with one bounded semantic change. The source remains intact and the new result appears in User Presets.',
+        'Create a reversible child style with one bounded semantic change. The source remains intact and the new result becomes the active audible master.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -378,7 +378,7 @@ export async function registerChampagneTools(
       name: 'create_variations',
       title: 'Create three mastering directions',
       description:
-        'Create up to three sibling mastering styles in one transaction and add them to User Presets. Use this for contrasting warm, open, and club-loud directions.',
+        'Create up to three sibling mastering styles in one transaction and select the first result. Use this for contrasting warm, open, and club-loud directions.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -433,7 +433,7 @@ export async function registerChampagneTools(
       name: 'stage_comparison',
       title: 'Stage a mastering comparison',
       description:
-        'Place two or three rendered custom styles together in the mastering pane and select the first. This does not alter any rendered audio.',
+        'Group two or three rendered custom styles for comparison and select the first. This does not alter any rendered audio.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -592,9 +592,9 @@ export async function registerChampagneTools(
     },
     {
       name: 'download_master',
-      title: 'Download the current track',
+      title: 'Prepare the current track for download',
       description:
-        'Always use when the user says download in any form, including inside a longer request or as the entire request. Immediately prepare and initiate a local 24-bit 48 kHz WAV download of the selected current master while preserving its trim, fades, and speed. Never remaster for a download-only request. Call this last after other requested actions. The version is optional and a stale version will not block an explicit download.',
+        'Always use when the user says download in any form, including inside a longer request or as the entire request. Prepare the selected current master as a local 24-bit 48 kHz WAV while preserving its trim, fades, and speed. Browser security requires the user to finish by clicking the visible Download WAV button; after this tool returns, clearly tell them to click it and never claim the file downloaded automatically. Never remaster for a download-only request. Call this last after other requested actions. The version is optional and a stale version will not block an explicit download.',
       inputSchema: {
         type: 'object',
         properties: {
