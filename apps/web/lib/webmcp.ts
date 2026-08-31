@@ -183,7 +183,7 @@ export async function registerChampagneTools(
       name: 'create_mastering_take',
       title: 'Create a custom mastering style',
       description:
-        'Create and locally render one reversible custom Champagne style from a safe baseline plus bounded musical adjustments. It becomes audible and appears in User Presets.',
+        'Use only when the user requests mastering or sonic changes. Create and locally render one reversible custom Champagne style from a safe baseline plus small, bounded musical adjustments. If the same request also includes cuts, fades, speed, or download, call those tools afterward in that order and pass each newly returned stateVersion into the next action.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -467,7 +467,7 @@ export async function registerChampagneTools(
       name: 'set_trim_fades',
       title: 'Set trim and fades',
       description:
-        'Update the non-destructive keep region and fade lengths for this local project. Values are validated against the loaded track duration.',
+        'Use for every cut, trim, fade-in, or fade-out instruction, including when it appears inside a mastering request. Update the non-destructive keep region and fade lengths while preserving the selected master. Values are validated against the loaded track duration; after a prior action, use that action’s returned stateVersion.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -557,15 +557,15 @@ export async function registerChampagneTools(
       name: 'set_track_speed',
       title: 'Set playback and export speed',
       description:
-        'Set the current track speed from 0% to 200%. The change is heard immediately and is baked into the next WAV export. 100% is normal speed; 0% pauses playback.',
+        'Use for every speed instruction, including when it appears inside a mastering request. Set the current track speed from 50% to 150%; the change is heard immediately, updates the visible percentage and switch, and is baked into the next WAV export. 100% restores normal speed and turns the speed effect off. After a prior action, use that action’s returned stateVersion.',
       inputSchema: {
         type: 'object',
         properties: {
           expectedStateVersion: stateVersion,
           speedPercent: {
             type: 'number',
-            minimum: 0,
-            maximum: 200,
+            minimum: 50,
+            maximum: 150,
             description:
               'Absolute track speed. For example, 135 is 35% faster and 75 is three-quarters speed.',
           },
@@ -594,7 +594,7 @@ export async function registerChampagneTools(
       name: 'download_master',
       title: 'Download the current track',
       description:
-        'Immediately download the selected current master as a local 24-bit 48 kHz WAV when the user explicitly asks to download. This preserves all current trim, fades, and speed settings and does not remaster.',
+        'Use whenever the user explicitly says download, including inside a longer request. Immediately download the selected current master as a local 24-bit 48 kHz WAV. Preserve the current master, trim, fades, and speed; never remaster for a download-only request. When other actions were requested too, call this last with the newest returned stateVersion.',
       inputSchema: {
         type: 'object',
         properties: {

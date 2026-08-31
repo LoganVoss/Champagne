@@ -44,7 +44,7 @@ export const STYLE_RECIPES: Record<StyleId, StyleRecipe> = {
     airColorDb: 0.25,
     compression: 0.78,
     upwardAmount: 0.22,
-    parallelMix: 0.28,
+    parallelMix: 0.2,
     midDrive: 0.18,
     width: 1.1,
     summary:
@@ -56,14 +56,14 @@ export const STYLE_RECIPES: Record<StyleId, StyleRecipe> = {
     subtitle: 'Upward lift · warm density',
     targetLufs: -11,
     ceilingDbtp: -1,
-    lowColorDb: 1.1,
-    presenceDb: 0.25,
-    airColorDb: -0.35,
+    lowColorDb: 0.9,
+    presenceDb: 0.35,
+    airColorDb: -0.15,
     compression: 0.62,
-    upwardAmount: 0.38,
+    upwardAmount: 0.3,
     parallelMix: 0.14,
-    midDrive: 0.34,
-    width: 1.03,
+    midDrive: 0.3,
+    width: 1.05,
     summary:
       'Richer center weight and low-level body without a cloudy top end.',
   },
@@ -73,14 +73,14 @@ export const STYLE_RECIPES: Record<StyleId, StyleRecipe> = {
     subtitle: 'Open · clear · dynamic polish',
     targetLufs: -10.5,
     ceilingDbtp: -1,
-    lowColorDb: -0.1,
-    presenceDb: 1.1,
-    airColorDb: 1.35,
-    compression: 0.48,
-    upwardAmount: 0.1,
-    parallelMix: 0.08,
-    midDrive: 0.07,
-    width: 1.17,
+    lowColorDb: 0.1,
+    presenceDb: 0.9,
+    airColorDb: 1.1,
+    compression: 0.55,
+    upwardAmount: 0.15,
+    parallelMix: 0.12,
+    midDrive: 0.1,
+    width: 1.14,
     summary: 'A more open, articulate finish with restrained dynamic control.',
   },
   dominant: {
@@ -92,10 +92,10 @@ export const STYLE_RECIPES: Record<StyleId, StyleRecipe> = {
     lowColorDb: 0.7,
     presenceDb: 0.55,
     airColorDb: 0.15,
-    compression: 1.08,
+    compression: 1,
     upwardAmount: 0.24,
-    parallelMix: 0.36,
-    midDrive: 0.27,
+    parallelMix: 0.25,
+    midDrive: 0.22,
     width: 1.12,
     summary: 'Maximum approved density and loudness with linked peak control.',
   },
@@ -535,6 +535,7 @@ export interface InterpretedBrief {
 export interface StudioPromptActions {
   shouldMaster: boolean;
   shouldDownload: boolean;
+  masteringText: string;
   speedPercent?: number;
   edits: {
     cutStartSeconds?: number;
@@ -551,7 +552,10 @@ const STOP_WORDS = new Set([
   'but',
   'can',
   'could',
+  'cut',
   'do',
+  'download',
+  'fade',
   'for',
   'from',
   'give',
@@ -572,10 +576,15 @@ const STOP_WORDS = new Set([
   'please',
   'something',
   'sound',
+  'speed',
+  'second',
+  'seconds',
   'the',
+  'then',
   'this',
   'to',
   'track',
+  'trim',
   'version',
   'with',
   'without',
@@ -678,30 +687,91 @@ export function interpretStudioPrompt(text: string): StudioPromptActions {
 
   let speedPercent: number | undefined;
   removeMatches(
+    /\b(?:(?:turn|switch)\s+(?:the\s+)?(?:track\s+)?speed\s+off|(?:reset|return|restore|set|change)\s+(?:the\s+)?(?:track|song|audio)?\s*(?:to\s+)?(?:its\s+)?(?:normal|original|regular)\s+speed)\b/g,
+    () => {
+      speedPercent = 100;
+    },
+  );
+  removeMatches(
+    /\b(?:set|change|adjust|put)\s+(?:the\s+)?(?:track|song|audio)?\s*speed\s+(?:to|at)\s*(\d+(?:\.\d+)?)\s*%(?!\d)/g,
+    (match) => {
+      speedPercent = clamp(Number(match[1]), 50, 150);
+    },
+  );
+  removeMatches(
+    /\b(?:play|run)\s+(?:the\s+)?(?:track|song|audio|it)?\s*(?:back\s+)?at\s+(\d+(?:\.\d+)?)\s*%(?:\s*speed\b)?/g,
+    (match) => {
+      speedPercent = clamp(Number(match[1]), 50, 150);
+    },
+  );
+  removeMatches(
     /\b(?:make|set|change|play)?\s*(?:the\s+)?(?:track|song|audio)?\s*(\d+(?:\.\d+)?)\s*%\s*(?:of\s+)?(?:the\s+)?(?:current|original|normal)?\s*speed\b/g,
     (match) => {
-      speedPercent = clamp(Number(match[1]), 0, 200);
+      speedPercent = clamp(Number(match[1]), 50, 150);
+    },
+  );
+  removeMatches(
+    /\b(?:speed\s+(?:the\s+)?(?:track|song|audio|it)?\s*up|increase\s+(?:the\s+)?(?:track|song|audio)?\s*speed)\s+by\s+(\d+(?:\.\d+)?)\s*%(?!\d)/g,
+    (match) => {
+      speedPercent = clamp(100 + Number(match[1]), 50, 150);
     },
   );
   removeMatches(
     /\b(?:make|set|change|play)?\s*(?:the\s+)?(?:track|song|audio)?\s*(\d+(?:\.\d+)?)\s*%\s*faster\b/g,
     (match) => {
-      speedPercent = clamp(100 + Number(match[1]), 0, 200);
+      speedPercent = clamp(100 + Number(match[1]), 50, 150);
+    },
+  );
+  removeMatches(
+    /\b(?:slow\s+(?:the\s+)?(?:track|song|audio|it)?\s*down|decrease\s+(?:the\s+)?(?:track|song|audio)?\s*speed)\s+by\s+(\d+(?:\.\d+)?)\s*%(?!\d)/g,
+    (match) => {
+      speedPercent = clamp(100 - Number(match[1]), 50, 150);
     },
   );
   removeMatches(
     /\b(?:make|set|change|play)?\s*(?:the\s+)?(?:track|song|audio)?\s*(\d+(?:\.\d+)?)\s*%\s*slower\b/g,
     (match) => {
-      speedPercent = clamp(100 - Number(match[1]), 0, 200);
+      speedPercent = clamp(100 - Number(match[1]), 50, 150);
     },
   );
   removeMatches(
-    /\b(?:make|set|change|play)?\s*(?:the\s+)?(?:track|song|audio)?\s*(\d+(?:\.\d+)?)\s*x(?:\s+speed)?\b/g,
+    /\b(?:make|set|change|play|run)?\s*(?:the\s+)?(?:track|song|audio|it)?\s*(?:at\s+)?(\d+(?:\.\d+)?)\s*x(?:\s+speed)?\b/g,
     (match) => {
-      speedPercent = clamp(Number(match[1]) * 100, 0, 200);
+      speedPercent = clamp(Number(match[1]) * 100, 50, 150);
     },
   );
 
+  removeMatches(
+    new RegExp(
+      `\\b(?:cut|trim|remove)\\s+(?:the\\s+)?(?:first|front|start)\\s+(${DURATION_TOKEN})\\s*(?:seconds?|secs?|s)?\\s+(?:and|&)\\s+(?:(?:cut|trim|remove)\\s+)?(?:the\\s+)?(?:last|back|end)\\s+(${DURATION_TOKEN})\\s*(?:seconds?|secs?|s)?`,
+      'g',
+    ),
+    (match) => {
+      edits.cutStartSeconds = durationValue(match[1]);
+      edits.cutEndSeconds = durationValue(match[2]);
+    },
+  );
+  removeMatches(
+    new RegExp(
+      `\\b(?:cut|trim|remove)\\s+(${DURATION_TOKEN})\\s*(?:seconds?|secs?|s)?\\s+(?:from|off)\\s+(?:each|both)\\s+(?:end|ends|side|sides)\\b`,
+      'g',
+    ),
+    (match) => {
+      const seconds = durationValue(match[1]);
+      edits.cutStartSeconds = seconds;
+      edits.cutEndSeconds = seconds;
+    },
+  );
+  removeMatches(
+    new RegExp(
+      `\\b(?:cut|trim|remove)\\s+(${DURATION_TOKEN})\\s*(?:seconds?|secs?|s)?\\s+(?:from|off)\\s+(?:the\\s+)?(?:front|start)\\s+(?:and|&)\\s+(${DURATION_TOKEN})\\s*(?:seconds?|secs?|s)?\\s+(?:from|off)\\s+(?:the\\s+)?(?:back|end)\\b`,
+      'g',
+    ),
+    (match) => {
+      edits.cutStartSeconds = durationValue(match[1]);
+      edits.cutEndSeconds = durationValue(match[2]);
+    },
+  );
   removeMatches(
     new RegExp(
       `\\b(?:cut|trim|remove)\\s+(?:the\\s+)?(?:first|front|start)\\s+(${DURATION_TOKEN})\\s*(?:seconds?|secs?|s)?\\s+(?:on|from|off)\\s+(?:the\\s+)?front\\s+(?:and|&)\\s+(?:the\\s+)?back\\b`,
@@ -711,6 +781,44 @@ export function interpretStudioPrompt(text: string): StudioPromptActions {
       const seconds = durationValue(match[1]);
       edits.cutStartSeconds = seconds;
       edits.cutEndSeconds = seconds;
+    },
+  );
+  removeMatches(
+    new RegExp(
+      `\\bfade(?:\\s+it)?\\s+in\\s+(?:for|over)\\s+(${DURATION_TOKEN})\\s*(?:seconds?|secs?|s)?\\s+(?:and|&)\\s+(?:fade\\s+)?(?:it\\s+)?out\\s+(?:for|over)\\s+(${DURATION_TOKEN})\\s*(?:seconds?|secs?|s)?`,
+      'g',
+    ),
+    (match) => {
+      edits.fadeInSeconds = durationValue(match[1]);
+      edits.fadeOutSeconds = durationValue(match[2]);
+    },
+  );
+  removeMatches(
+    new RegExp(
+      `\\bfade\\s+(?:the\\s+)?(?:first|front|start)\\s+(${DURATION_TOKEN})\\s*(?:seconds?|secs?|s)?\\s+(?:and|&)\\s+(?:the\\s+)?(?:last|back|end)\\s+(${DURATION_TOKEN})\\s*(?:seconds?|secs?|s)?`,
+      'g',
+    ),
+    (match) => {
+      edits.fadeInSeconds = durationValue(match[1]);
+      edits.fadeOutSeconds = durationValue(match[2]);
+    },
+  );
+  removeMatches(
+    new RegExp(
+      `\\bfade\\s+(${DURATION_TOKEN})\\s*(?:seconds?|secs?|s)?\\s+(?:at|on)\\s+(?:each|both)\\s+(?:end|ends|side|sides)\\b`,
+      'g',
+    ),
+    (match) => {
+      const seconds = durationValue(match[1]);
+      edits.fadeInSeconds = seconds;
+      edits.fadeOutSeconds = seconds;
+    },
+  );
+  removeMatches(
+    /\bfade(?:\s+it)?\s+in\s+(?:and|&)\s+(?:fade\s+)?(?:it\s+)?out\b/g,
+    () => {
+      edits.fadeInSeconds = 1;
+      edits.fadeOutSeconds = 1;
     },
   );
   removeMatches(
@@ -823,8 +931,12 @@ export function interpretStudioPrompt(text: string): StudioPromptActions {
     )
     .replace(/\b(?:do\s+not|don't|dont|without)\s+remaster(?:ing)?\b/g, ' ');
   const masteringSignal =
-    /\b(?:master|mastering|remaster|style|preset|loud|louder|warm|warmer|bright|brighter|dark|darker|punch|punchy|dynamic|dynamics|wide|wider|narrow|smooth|harsh|crisp|clear|airy|air|bass|low end|presence|glue|dense|density|analog|vintage|modern|club|festival|radio|streaming|cinematic|aggressive|gentle|polish|transparent|intimate|vocal|drums?|kick|energy|texture|feel|sound)\b/.test(
+    /\b(?:master|mastering|remaster|style|preset|loud|louder|power|powerful|impactful|strong|warm|warmer|bright|brighter|dark|darker|punch|punchy|dynamic|dynamics|wide|wider|narrow|smooth|harsh|crisp|clear|airy|air|bass|low end|presence|glue|dense|density|analog|vintage|modern|club|festival|radio|streaming|cinematic|aggressive|gentle|polish|transparent|intimate|vocal|drums?|kick|energy|texture|feel|sound)\b/.test(
       remainder,
+    );
+  const mentionsEditIntent =
+    /\b(?:cut|trim|remove|fade|speed|faster|slower|download)\b/.test(
+      normalized,
     );
   const cleanedRemainder = remainder
     .replace(
@@ -837,12 +949,22 @@ export function interpretStudioPrompt(text: string): StudioPromptActions {
     recognizedOperation ||
     Object.values(edits).some((value) => value != null) ||
     speedPercent != null;
+  const masteringText = remainder
+    .replace(
+      /\b(?:and|then|also)\b(?=\s*(?:(?:[,.;:&+-]\s*)|(?:\b(?:and|then|also)\b\s*))*$)/g,
+      ' ',
+    )
+    .replace(/(?:\s*[,;:&+-]\s*){2,}/g, ', ')
+    .replace(/\s+/g, ' ')
+    .replace(/^[\s,.;:&+-]+|[\s,.;:&+-]+$/g, '')
+    .trim();
 
   return {
     shouldMaster: hasOperationalAction
       ? masteringSignal
-      : cleanedRemainder.length > 0,
+      : !mentionsEditIntent && cleanedRemainder.length > 0,
     shouldDownload,
+    masteringText,
     speedPercent,
     edits,
   };

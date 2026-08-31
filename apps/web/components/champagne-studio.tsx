@@ -26,7 +26,14 @@ import {
   WandSparkles,
   X,
 } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { flushSync } from 'react-dom';
 
 import { WaveformEditor } from '@/components/waveform-editor';
@@ -177,9 +184,9 @@ const DEMO_TRACKS = [
     sourceKey: 'fire-demo-v1',
   },
   {
-    name: 'LightBeam',
+    name: 'Light Beam',
     path: '/audio/demo/light-beam.m4a',
-    fileName: 'LightBeam.m4a',
+    fileName: 'Light Beam.m4a',
     type: 'audio/mp4',
     sourceKey: 'light-beam-demo-v1',
   },
@@ -228,6 +235,7 @@ export function ChampagneStudio() {
   });
   const [currentTime, setCurrentTime] = useState(0);
   const [speedPercent, setSpeedPercent] = useState(100);
+  const [speedEnabled, setSpeedEnabled] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [brief, setBrief] = useState('');
   const [, setIntentDisplay] = useState<InterpretedBrief | null>(null);
@@ -247,6 +255,8 @@ export function ChampagneStudio() {
   const [isDropTargeted, setIsDropTargeted] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const composerFieldRef = useRef<HTMLDivElement>(null);
+  const composerSuggestionTextRef = useRef<HTMLSpanElement>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const playbackRef = useRef<PlaybackRuntime | null>(null);
   const renderBusyRef = useRef(false);
@@ -263,6 +273,7 @@ export function ChampagneStudio() {
     monitorMastered,
     trim,
     speedPercent,
+    speedEnabled,
     comparisonIds,
     agentPaused,
   });
@@ -274,6 +285,7 @@ export function ChampagneStudio() {
     monitorMastered,
     trim,
     speedPercent,
+    speedEnabled,
     comparisonIds,
     agentPaused,
   };
@@ -284,7 +296,9 @@ export function ChampagneStudio() {
     monitorMastered && activeRevision
       ? activeRevision.waveform
       : (track?.waveform ?? []);
-  const isLoadingView = phase === 'analyzing' || phase === 'rendering';
+  const isLoadingView = phase === 'analyzing' && !track;
+  const isStudioBusy = Boolean(track) &&
+    (phase === 'analyzing' || phase === 'rendering');
   const studioView = isLoadingView ? 'loading' : track ? 'studio' : 'selection';
   const presetPageCount = Math.max(1, Math.ceil(userPresets.length / 4));
   const visibleUserPresets = userPresets.slice(
@@ -386,20 +400,6 @@ export function ChampagneStudio() {
       const source = context.createBufferSource();
       source.buffer = monitored.buffer;
       const speedRate = runtimeRef.current.speedPercent / 100;
-      if (speedRate <= 0) {
-        setCurrentTime(
-          clamp(
-            offset,
-            runtimeRef.current.trim.startSeconds,
-            runtimeRef.current.trim.endSeconds,
-          ),
-        );
-        setIsPlaying(false);
-        setNotice(
-          'Track speed is at 0%. Raise the speed slider to play audio.',
-        );
-        return;
-      }
       source.playbackRate.setValueAtTime(speedRate, now);
       const gain = context.createGain();
       const baseGain = 1;
@@ -444,8 +444,11 @@ export function ChampagneStudio() {
     [startPlayback],
   );
 
-  const applyPlaybackSpeed = useCallback((requestedPercent: number) => {
-    const nextPercent = round(clamp(requestedPercent, 0, 200), 1);
+  const applyPlaybackSpeed = useCallback((
+    requestedPercent: number,
+    enabled = true,
+  ) => {
+    const nextPercent = round(clamp(requestedPercent, 50, 150), 1);
     const nextRate = nextPercent / 100;
     const playback = playbackRef.current;
     if (playback) {
@@ -463,7 +466,9 @@ export function ChampagneStudio() {
       setCurrentTime(position);
     }
     runtimeRef.current.speedPercent = nextPercent;
+    runtimeRef.current.speedEnabled = enabled;
     setSpeedPercent(nextPercent);
+    setSpeedEnabled(enabled);
     setExportReadyId(null);
     return nextPercent;
   }, []);
@@ -597,6 +602,25 @@ export function ChampagneStudio() {
     return () => window.clearInterval(timer);
   }, [brief]);
 
+  useLayoutEffect(() => {
+    const field = composerFieldRef.current;
+    const suggestion = composerSuggestionTextRef.current;
+    if (!field || !suggestion || brief) return;
+
+    const alignEmptyCaret = () => {
+      const fieldRect = field.getBoundingClientRect();
+      const suggestionRect = suggestion.getBoundingClientRect();
+      const start = Math.max(22, suggestionRect.left - fieldRect.left - 2);
+      field.style.setProperty('--empty-caret-left', `${start}px`);
+    };
+
+    alignEmptyCaret();
+    const observer = new ResizeObserver(alignEmptyCaret);
+    observer.observe(field);
+    observer.observe(suggestion);
+    return () => observer.disconnect();
+  }, [brief, suggestionIndex, track]);
+
   useEffect(() => {
     setPresetPage((current) =>
       Math.min(current, Math.max(0, Math.ceil(userPresets.length / 4) - 1)),
@@ -654,6 +678,7 @@ export function ChampagneStudio() {
       buffer: AudioBuffer,
       demoIndex: number | null = null,
     ) => {
+      const replacingTrack = Boolean(runtimeRef.current.track);
       stopPlayback(false);
       setPhase('analyzing');
       setNotice(null);
@@ -663,8 +688,10 @@ export function ChampagneStudio() {
       setExportReadyId(null);
       setCurrentTime(0);
       setSpeedPercent(100);
+      setSpeedEnabled(false);
       committedSpeedRef.current = 100;
       runtimeRef.current.speedPercent = 100;
+      runtimeRef.current.speedEnabled = false;
       setMonitorMastered(false);
       await afterPaint();
 
@@ -678,7 +705,7 @@ export function ChampagneStudio() {
         analysis,
         demoIndex,
       };
-      await runViewTransition(() => {
+      const revealTrack = () => {
         setTrack(loaded);
         setTrim({
           startSeconds: 0,
@@ -689,7 +716,9 @@ export function ChampagneStudio() {
           fadeOutCurve: 1 / 3,
         });
         setPhase('ready');
-      });
+      };
+      if (replacingTrack) revealTrack();
+      else await runViewTransition(revealTrack);
       bumpStateVersion();
       addReceipt({
         creator: 'manual',
@@ -717,10 +746,12 @@ export function ChampagneStudio() {
       }
       try {
         const requestId = ++loadRequestRef.current;
-        await runViewTransition(() => {
+        const showLoading = () => {
           setAgentPanelOpen(false);
           setPhase('analyzing');
-        }, true);
+        };
+        if (runtimeRef.current.track) showLoading();
+        else await runViewTransition(showLoading, true);
         const buffer = await decodeAudioFile(file);
         if (requestId !== loadRequestRef.current) return;
         await loadDecodedTrack(
@@ -729,15 +760,18 @@ export function ChampagneStudio() {
           buffer,
         );
       } catch (error) {
-        await runViewTransition(() => {
-          setPhase('empty');
-          setTrack(null);
+        const showError = () => {
+          const hasTrack = Boolean(runtimeRef.current.track);
+          setPhase(hasTrack ? 'ready' : 'empty');
+          if (!hasTrack) setTrack(null);
           setNotice(
             error instanceof Error
               ? `Champagne could not decode this file: ${error.message}`
               : 'Champagne could not decode this file.',
           );
-        });
+        };
+        if (runtimeRef.current.track) showError();
+        else await runViewTransition(showError);
       }
     },
     [loadDecodedTrack],
@@ -751,10 +785,12 @@ export function ChampagneStudio() {
       const demo = DEMO_TRACKS[demoIndex];
       try {
         const requestId = ++loadRequestRef.current;
-        await runViewTransition(() => {
+        const showLoading = () => {
           setAgentPanelOpen(false);
           setPhase('analyzing');
-        }, true);
+        };
+        if (runtimeRef.current.track) showLoading();
+        else await runViewTransition(showLoading, true);
         const response = await fetch(demo.path);
         if (!response.ok) throw new Error('The demo track is unavailable.');
         const blob = await response.blob();
@@ -763,14 +799,16 @@ export function ChampagneStudio() {
         if (requestId !== loadRequestRef.current) return;
         await loadDecodedTrack(demo.name, demo.sourceKey, buffer, demoIndex);
       } catch (error) {
-        await runViewTransition(() => {
-          setPhase('empty');
+        const showError = () => {
+          setPhase(runtimeRef.current.track ? 'ready' : 'empty');
           setNotice(
             error instanceof Error
               ? error.message
               : 'Champagne could not load the demo track.',
           );
-        });
+        };
+        if (runtimeRef.current.track) showError();
+        else await runViewTransition(showError);
       }
     },
     [loadDecodedTrack],
@@ -878,11 +916,9 @@ export function ChampagneStudio() {
         markWebMCP(
           `Creating a custom style from ${STYLE_RECIPES[input.baseStyle].name}`,
         );
-      await runViewTransition(() => {
-        setAgentPanelOpen(false);
-        setPhase('rendering');
-        setMonitorMastered(true);
-      }, true);
+      setAgentPanelOpen(false);
+      setPhase('rendering');
+      setMonitorMastered(true);
 
       const requestedModifiers = input.modifiers ?? makeModifiers(input);
       const modifiers = { ...DEFAULT_MODIFIERS };
@@ -931,10 +967,8 @@ export function ChampagneStudio() {
           input.signal,
         );
         if (startingVersion !== stateVersionRef.current) {
-          await runViewTransition(() =>
-            setPhase(
-              runtimeRef.current.revisions.length ? 'preview_ready' : 'ready',
-            ),
+          setPhase(
+            runtimeRef.current.revisions.length ? 'preview_ready' : 'ready',
           );
           return {
             ok: false,
@@ -975,17 +1009,15 @@ export function ChampagneStudio() {
             sourceTrack.sourceKey,
           ),
         };
-        await runViewTransition(() => {
-          setRevisions((current) => [...current, revision]);
-          setActiveRevisionId(revision.id);
-          setComparisonIds((current) =>
-            current.length
-              ? [...new Set([...current, revision.id])].slice(-3)
-              : [revision.id],
-          );
-          setExportReadyId(null);
-          setPhase('preview_ready');
-        });
+        setRevisions((current) => [...current, revision]);
+        setActiveRevisionId(revision.id);
+        setComparisonIds((current) =>
+          current.length
+            ? [...new Set([...current, revision.id])].slice(-3)
+            : [revision.id],
+        );
+        setExportReadyId(null);
+        setPhase('preview_ready');
         if (input.creator !== 'manual') savePresetToDevice(revision);
         const nextVersion = bumpStateVersion();
         addReceipt({
@@ -1029,11 +1061,9 @@ export function ChampagneStudio() {
             ? 'The local render was cancelled.'
             : 'Champagne could not render this style.',
         );
-        await runViewTransition(() => {
-          setPhase(
-            runtimeRef.current.revisions.length ? 'preview_ready' : 'ready',
-          );
-        });
+        setPhase(
+          runtimeRef.current.revisions.length ? 'preview_ready' : 'ready',
+        );
         return {
           ok: false,
           code: cancelled ? 'CANCELLED' : 'RENDER_FAILED',
@@ -1139,11 +1169,9 @@ export function ChampagneStudio() {
       renderBusyRef.current = true;
       if (input.creator === 'webmcp')
         markWebMCP(`Creating ${uniqueStyles.length} mastering directions`);
-      await runViewTransition(() => {
-        setAgentPanelOpen(false);
-        setPhase('rendering');
-        setMonitorMastered(true);
-      }, true);
+      setAgentPanelOpen(false);
+      setPhase('rendering');
+      setMonitorMastered(true);
       const constraintList =
         input.constraint === 'none'
           ? []
@@ -1217,10 +1245,8 @@ export function ChampagneStudio() {
           });
         }
         if (startingVersion !== stateVersionRef.current) {
-          await runViewTransition(() =>
-            setPhase(
-              runtimeRef.current.revisions.length ? 'preview_ready' : 'ready',
-            ),
+          setPhase(
+            runtimeRef.current.revisions.length ? 'preview_ready' : 'ready',
           );
           return {
             ok: false,
@@ -1228,15 +1254,13 @@ export function ChampagneStudio() {
             message: 'The project changed while the variations were rendering.',
           };
         }
-        await runViewTransition(() => {
-          setRevisions((current) => [...current, ...created]);
-          setComparisonIds(created.map((revision) => revision.id));
-          setActiveRevisionId(created[0].id);
-          runtimeRef.current.comparisonIds = created.map(
-            (revision) => revision.id,
-          );
-          setPhase('preview_ready');
-        });
+        setRevisions((current) => [...current, ...created]);
+        setComparisonIds(created.map((revision) => revision.id));
+        setActiveRevisionId(created[0].id);
+        runtimeRef.current.comparisonIds = created.map(
+          (revision) => revision.id,
+        );
+        setPhase('preview_ready');
         created.forEach(savePresetToDevice);
         const nextVersion = bumpStateVersion();
         addReceipt({
@@ -1270,9 +1294,7 @@ export function ChampagneStudio() {
       } catch (error) {
         const cancelled =
           error instanceof DOMException && error.name === 'AbortError';
-        await runViewTransition(() =>
-          setPhase(snapshot.revisions.length ? 'preview_ready' : 'ready'),
-        );
+        setPhase(snapshot.revisions.length ? 'preview_ready' : 'ready');
         return {
           ok: false,
           code: cancelled ? 'CANCELLED' : 'RENDER_FAILED',
@@ -1416,6 +1438,7 @@ export function ChampagneStudio() {
         ),
       };
       if (input.creator === 'webmcp') markWebMCP('Updating trim and fades');
+      runtimeRef.current.trim = next;
       setTrim(next);
       const nextVersion = bumpStateVersion();
       addReceipt({
@@ -1455,13 +1478,20 @@ export function ChampagneStudio() {
         };
       if (!runtimeRef.current.track)
         return { ok: false, code: 'NO_TRACK', message: 'Load a track first.' };
-      if (!Number.isFinite(input.speedPercent))
+      if (
+        !Number.isFinite(input.speedPercent) ||
+        input.speedPercent < 50 ||
+        input.speedPercent > 150
+      )
         return {
           ok: false,
           code: 'INVALID_SPEED',
-          message: 'Track speed must be a finite percentage from 0 to 200.',
+          message: 'Track speed must be a finite percentage from 50 to 150.',
         };
-      const nextPercent = applyPlaybackSpeed(input.speedPercent);
+      const nextPercent = applyPlaybackSpeed(
+        input.speedPercent,
+        input.speedPercent !== 100,
+      );
       committedSpeedRef.current = nextPercent;
       if (input.creator === 'webmcp')
         markWebMCP(`Setting track speed to ${nextPercent}%`);
@@ -1667,6 +1697,7 @@ export function ChampagneStudio() {
       })),
       trim: snapshot.trim,
       speedPercent: snapshot.speedPercent,
+      speedEnabled: snapshot.speedEnabled,
       availableActions: snapshot.revisions.length
         ? [
             'create_mastering_take',
@@ -1826,6 +1857,25 @@ export function ChampagneStudio() {
     });
   }, [addReceipt, bumpStateVersion]);
 
+  const toggleSpeedControl = useCallback(
+    (enabled: boolean) => {
+      const nextPercent = applyPlaybackSpeed(
+        enabled ? runtimeRef.current.speedPercent : 100,
+        enabled,
+      );
+      committedSpeedRef.current = nextPercent;
+      bumpStateVersion();
+      addReceipt({
+        creator: 'manual',
+        title: enabled ? 'Track speed enabled' : 'Track speed reset',
+        detail: enabled
+          ? `${nextPercent}% · ready for live adjustment`
+          : '100% · normal playback and export speed',
+      });
+    },
+    [addReceipt, applyPlaybackSpeed, bumpStateVersion],
+  );
+
   const submitBrief = useCallback(async () => {
     const value = brief.trim();
     if (!track || !value || renderBusyRef.current) return;
@@ -1834,7 +1884,7 @@ export function ChampagneStudio() {
     let masteringResult: unknown = { ok: true };
     if (actions.shouldMaster) {
       const interpreted = interpretBrief(
-        value,
+        actions.masteringText || value,
         Boolean(runtimeRef.current.activeRevisionId),
       );
       setIntentDisplay(interpreted);
@@ -2069,8 +2119,10 @@ export function ChampagneStudio() {
       setExportReadyId(null);
       setCurrentTime(0);
       setSpeedPercent(100);
+      setSpeedEnabled(false);
       committedSpeedRef.current = 100;
       runtimeRef.current.speedPercent = 100;
+      runtimeRef.current.speedEnabled = false;
       setBrief('');
       setIntentDisplay(null);
       setNotice(null);
@@ -2110,7 +2162,7 @@ export function ChampagneStudio() {
             flags: track.analysis.flags,
           }
         : null,
-      edits: track ? { trim, speedPercent } : null,
+      edits: track ? { trim, speedPercent, speedEnabled } : null,
       capabilities: {
         styles: STYLE_IDS,
         actions: [
@@ -2130,6 +2182,7 @@ export function ChampagneStudio() {
       activeRevisionId,
       phase,
       revisions.length,
+      speedEnabled,
       speedPercent,
       stateVersion,
       track,
@@ -2250,7 +2303,7 @@ export function ChampagneStudio() {
               <h1>Your sound just leveled up.</h1>
               <p className="empty-copy">
                 AI guides the physics behind Champagne&apos;s mastering engine.
-                Clock every take, compare original and mastered versions, and
+                Clock every take, compare original and mastered versions, then
                 download your masterpiece.
               </p>
               <div className="empty-actions">
@@ -2356,19 +2409,15 @@ export function ChampagneStudio() {
                       )}
                     </div>
                     <span className="timecode">
-                      {speedPercent > 0
-                        ? formatTime(
-                            (currentTime - trim.startSeconds) /
-                              (speedPercent / 100),
-                          )
-                        : 'PAUSED'}{' '}
+                      {formatTime(
+                        (currentTime - trim.startSeconds) /
+                          (speedPercent / 100),
+                      )}{' '}
                       <i>/</i>{' '}
-                      {speedPercent > 0
-                        ? formatTime(
-                            (trim.endSeconds - trim.startSeconds) /
-                              (speedPercent / 100),
-                          )
-                        : 'PAUSED'}
+                      {formatTime(
+                        (trim.endSeconds - trim.startSeconds) /
+                          (speedPercent / 100),
+                      )}
                     </span>
                   </div>
 
@@ -2420,27 +2469,41 @@ export function ChampagneStudio() {
                       )}
                     </button>
                     <div className="transport-options">
-                    <div className="speed-control">
-                        <div className="speed-label">
+                      <div className="speed-control">
+                        <div className="speed-control-head">
                           <span>Track Speed</span>
-                          <strong>{speedPercent}%</strong>
+                          <Switch
+                            className="speed-toggle"
+                            size="sm"
+                            checked={speedEnabled}
+                            onCheckedChange={toggleSpeedControl}
+                            aria-label="Enable track speed control"
+                          />
                         </div>
-                        <div className="speed-slider-wrap">
+                        <strong className="speed-value">
+                          {speedPercent}%
+                        </strong>
+                        <div
+                          className="speed-slider-wrap"
+                          data-disabled={!speedEnabled}
+                        >
                           <Slider
                             aria-label="Track speed percentage"
-                            min={0}
-                            max={200}
+                            min={50}
+                            max={150}
                             step={1}
+                            disabled={!speedEnabled}
                             value={[speedPercent]}
-                          onValueChange={(values) =>
-                            applyPlaybackSpeed(
-                              typeof values === 'number'
-                                ? values
-                                : (values[0] ?? 100),
-                            )
-                          }
-                          onValueCommitted={() => commitManualSpeed()}
-                        />
+                            onValueChange={(values) =>
+                              applyPlaybackSpeed(
+                                typeof values === 'number'
+                                  ? values
+                                  : (values[0] ?? 100),
+                                true,
+                              )
+                            }
+                            onValueCommitted={() => commitManualSpeed()}
+                          />
                           <span className="speed-center" aria-hidden="true" />
                         </div>
                       </div>
@@ -2459,13 +2522,25 @@ export function ChampagneStudio() {
                       <strong>Mastering Magic</strong>
                     </span>
                   </div>
-                  <Dialog>
+                  <div className="brief-header-tools">
+                    {isStudioBusy && (
+                      <output
+                        className="studio-busy-indicator"
+                        aria-live="polite"
+                      >
+                        <i aria-hidden="true" />
+                        {phase === 'rendering'
+                          ? 'Creating preview'
+                          : 'Switching track'}
+                      </output>
+                    )}
+                    <Dialog>
                     <DialogTrigger
                       render={
                         <button
                           className="mastering-info-button"
                           type="button"
-                          aria-label="How Mastering Magic works"
+                          aria-label="How Champagne Works with WebMCP"
                         />
                       }
                     >
@@ -2473,21 +2548,15 @@ export function ChampagneStudio() {
                     </DialogTrigger>
                     <DialogContent className="mastering-info-dialog sm:max-w-[560px]">
                       <DialogHeader>
-                        <DialogTitle>How Mastering Magic works</DialogTitle>
+                        <DialogTitle>
+                          How Champagne Works with WebMCP
+                        </DialogTitle>
                         <DialogDescription>
-                          Four proven signatures give every request a safe,
-                          musical starting point.
+                          Four proven mastering styles give every request a safe
+                          baseline.
                         </DialogDescription>
                       </DialogHeader>
                       <div className="mastering-info-copy">
-                        <p>
-                          <strong>
-                            Every song needs a slightly different touch.
-                          </strong>{' '}
-                          Full Power, Warm Presence, Modern Crisp, and Dominant
-                          are precisely calculated baselines designed to
-                          translate across genres.
-                        </p>
                         <p>
                           ChatGPT reads your direction, chooses the closest
                           signature, then applies bounded refinements across
@@ -2496,27 +2565,29 @@ export function ChampagneStudio() {
                           masterpiece without pushing the engine outside its
                           approved range.
                         </p>
-                        <p>
-                          Your audio stays on this device. Every result is
-                          audible, reversible, and visible as a custom preset.
-                          Prompts that only request cuts, fades, speed, or a
-                          download preserve the current master and perform only
-                          those actions.
+                        <p className="mastering-info-close">
+                          <strong>
+                            Every song needs a slightly different touch.
+                          </strong>{' '}
+                          That&apos;s where WebMCP makes the difference.
                         </p>
                       </div>
                     </DialogContent>
-                  </Dialog>
+                    </Dialog>
+                  </div>
                 </div>
 
                 <div className="composer">
-                  <div className="composer-field">
+                  <div className="composer-field" ref={composerFieldRef}>
                     {!brief && (
                       <div
                         className="composer-suggestion"
                         key={suggestionIndex}
                         aria-hidden="true"
                       >
-                        {PROMPT_SUGGESTIONS[suggestionIndex]}
+                        <span ref={composerSuggestionTextRef}>
+                          {PROMPT_SUGGESTIONS[suggestionIndex]}
+                        </span>
                       </div>
                     )}
                     <Textarea
@@ -2538,7 +2609,7 @@ export function ChampagneStudio() {
                     className="send-button"
                     size="icon"
                     aria-label="Create local preview"
-                    disabled={!brief.trim()}
+                    disabled={!brief.trim() || isStudioBusy}
                     onClick={() => void submitBrief()}
                   >
                     <ArrowUp />
@@ -2581,6 +2652,7 @@ export function ChampagneStudio() {
                         className={`style-row ${selected ? 'is-selected' : ''}`}
                         key={style}
                         type="button"
+                        aria-pressed={selected}
                         onClick={() => handleStyle(style)}
                       >
                         <span className="style-glyph">
@@ -2590,7 +2662,7 @@ export function ChampagneStudio() {
                           <strong>{recipe.name}</strong>
                           <small>{recipe.subtitle}</small>
                         </span>
-                        {readyRevision ? (
+                        {selected ? (
                           <span className="ready-mark">
                             <Check />
                           </span>
@@ -2656,6 +2728,7 @@ export function ChampagneStudio() {
                             className={`style-row preset-row ${selected ? 'is-selected' : ''}`}
                             key={preset.id}
                             type="button"
+                            aria-pressed={selected}
                             onClick={() => handleUserPreset(preset)}
                           >
                             <span className="style-glyph">
@@ -2668,7 +2741,7 @@ export function ChampagneStudio() {
                                 · Custom
                               </small>
                             </span>
-                            {rendered ? (
+                            {selected ? (
                               <span className="ready-mark">
                                 <Check />
                               </span>
@@ -2701,7 +2774,7 @@ export function ChampagneStudio() {
                   Control with ChatGPT
                 </SheetTitle>
                 <SheetDescription className="mt-0.5 text-xs">
-                  The agent and you work on the same live studio.
+                  You and agent work together to create magic.
                 </SheetDescription>
               </div>
             </div>

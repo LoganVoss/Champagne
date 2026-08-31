@@ -132,7 +132,7 @@ export async function renderMasteringTake(
   lowShelf.type = 'lowshelf';
   lowShelf.frequency.value = 95;
   lowShelf.gain.value = clamp(
-    recipe.lowColorDb + modifiers.warmth * 1.45 + modifiers.lowEnd * 2.05,
+    recipe.lowColorDb + modifiers.warmth * 1.25 + modifiers.lowEnd * 1.8,
     -2.2,
     3,
   );
@@ -152,7 +152,7 @@ export async function renderMasteringTake(
   presence.frequency.value = 2_300;
   presence.Q.value = 0.9;
   presence.gain.value = clamp(
-    recipe.presenceDb + modifiers.brightness * 0.68 + modifiers.presence * 1.6,
+    recipe.presenceDb + modifiers.brightness * 0.55 + modifiers.presence * 1.35,
     -1.2,
     2.2,
   );
@@ -162,9 +162,9 @@ export async function renderMasteringTake(
   air.frequency.value = 11_500;
   air.gain.value = clamp(
     recipe.airColorDb +
-      modifiers.brightness * 1.45 +
-      modifiers.air * 1.95 -
-      modifiers.smoothness * 1.25,
+      modifiers.brightness * 1.25 +
+      modifiers.air * 1.7 -
+      modifiers.smoothness * 1.1,
     -2.4,
     2.8,
   );
@@ -173,14 +173,14 @@ export async function renderMasteringTake(
   deHarsh.type = 'peaking';
   deHarsh.frequency.value = 6_200;
   deHarsh.Q.value = 0.78;
-  deHarsh.gain.value = clamp(-modifiers.smoothness * 1.95, -2.4, 0.5);
+  deHarsh.gain.value = clamp(-modifiers.smoothness * 1.7, -2.2, 0.5);
 
   const compressor = offline.createDynamicsCompressor();
   const compressionScale = clamp(
     1 +
-      modifiers.intensity * 0.46 +
-      modifiers.glue * 0.4 +
-      modifiers.density * 0.3 -
+      modifiers.intensity * 0.42 +
+      modifiers.glue * 0.34 +
+      modifiers.density * 0.25 -
       modifiers.dynamics * 0.58 -
       modifiers.punch * 0.24,
     0.38,
@@ -207,34 +207,15 @@ export async function renderMasteringTake(
   );
   saturation.oversample = '2x';
 
-  const dryGain = offline.createGain();
-  const wetGain = offline.createGain();
-  const wetMix = clamp(
-    0.38 +
-      recipe.compression * 0.25 +
-      recipe.parallelMix * 0.65 +
-      recipe.upwardAmount * 0.12 +
-      modifiers.glue * 0.12 +
-      modifiers.density * 0.1 -
-      modifiers.dynamics * 0.18,
-    0.42,
-    0.84,
-  );
-  dryGain.gain.value = 1 - wetMix;
-  wetGain.gain.value = wetMix;
-
   source.connect(highPass);
   highPass.connect(lowShelf);
   lowShelf.connect(mud);
   mud.connect(presence);
   presence.connect(air);
   air.connect(deHarsh);
-  deHarsh.connect(dryGain);
-  dryGain.connect(offline.destination);
   deHarsh.connect(compressor);
   compressor.connect(saturation);
-  saturation.connect(wetGain);
-  wetGain.connect(offline.destination);
+  saturation.connect(offline.destination);
   source.start();
 
   const filtered = await offline.startRendering();
@@ -272,9 +253,9 @@ function finalizeMaster(
     const outLeft = prepared[0];
     const outRight = prepared[1];
     const safeWidth = clamp(
-      width + modifiers.width * 0.24 + modifiers.brightness * 0.025,
-      0.8,
-      1.3,
+      width + modifiers.width * 0.18 + modifiers.brightness * 0.02,
+      0.82,
+      1.26,
     );
     for (let index = 0; index < input.length; index += 1) {
       const mid = (left[index] + right[index]) * 0.5;
@@ -387,11 +368,12 @@ export async function encodeMasterWav24(
   trim: TrimSettings,
   speedPercent = 100,
 ): Promise<Blob> {
-  if (!Number.isFinite(speedPercent) || speedPercent <= 0) {
-    throw new Error('Choose a speed above 0% before downloading.');
-  }
-  if (speedPercent < 25) {
-    throw new Error('WAV export supports speeds from 25% to 200%.');
+  if (
+    !Number.isFinite(speedPercent) ||
+    speedPercent < 50 ||
+    speedPercent > 150
+  ) {
+    throw new Error('WAV export supports speeds from 50% to 150%.');
   }
   const buffer = await resample(source, WAV_SAMPLE_RATE);
   const channels = Math.min(2, buffer.numberOfChannels);
@@ -405,7 +387,7 @@ export async function encodeMasterWav24(
     startFrame + 1,
     buffer.length,
   );
-  const speedRate = clamp(speedPercent / 100, 0.25, 2);
+  const speedRate = clamp(speedPercent / 100, 0.5, 1.5);
   const sourceFrames = endFrame - startFrame;
   const frames = Math.max(1, Math.ceil(sourceFrames / speedRate));
   const bytesPerSample = 3;

@@ -23,7 +23,9 @@ that conversation into an audible, reversible command loop:
    Presets**.
 4. ChatGPT can read compact studio state, create/refine/compare takes, and
    control cuts, fades, speed, and explicitly requested downloads through the
-   same command functions.
+   same command functions. Combined requests run in one ordered pass, and the
+   live speed control is bounded to 50–150% with an off state that restores
+   100%.
 5. The artist listens to Original and Mastered, adjusts every edit in real
    time, and downloads by click or direct prompt. Audio bytes never leave the
    device.

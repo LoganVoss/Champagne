@@ -36,7 +36,7 @@ The top-level studio page imperatively registers ten page-bound tools through `d
 - `commit_master`
 - `download_master`
 
-Every tool calls the same command functions used by the manual style controls and on-page Mastering Magic. Mutations validate a current `expectedStateVersion`, update the visible studio, and return only after the UI has had time to commit.
+Every tool calls the same command functions used by the manual style controls and on-page Mastering Magic. Mutations validate a current `expectedStateVersion`, update the visible studio, and return only after the UI has had time to commit. Mixed prompts are executed in order—mastering, trim/fades, speed, then download—while edit-only prompts preserve the current master. Speed is bounded to 50–150%; switching it off restores 100%.
 
 `commit_master` stages a style. `download_master` starts a download only when the user explicitly requests one; the same export remains available through **Download WAV**.
 
