@@ -47,6 +47,7 @@ being folded into this public root as ordinary `apps/web/` files:
 | 2026-08-30 00:05 | `2810ad7` | Prompt interpretation made actionable |
 | 2026-08-30 00:08 | `adefc4e` | User Preset pages and responsive balance |
 | 2026-08-30 00:39 | `abea3ae` | Loading transition and direct download |
+| 2026-08-31 11:25 | `8f8a8c2` | Targeted edit/download routing, track speed, five-track demo, and final studio polish |
 
 `CHALLENGE_DELTA.md` is intentionally short enough to read on the repo front
 page; this file carries the details for a reviewer who wants the audit trail.
