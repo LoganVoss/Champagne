@@ -115,6 +115,65 @@ const constraintEnum = [
   'keep_dynamic',
 ];
 
+const HUMAN_ONLY_FILE_SAVE = {
+  mode: 'human_only',
+  controlLabel: 'Download WAV',
+  siteToolAvailable: false,
+  assistantMustNotAttempt: true,
+} as const;
+
+const HUMAN_SAVE_GUIDANCE =
+  ' Download is not a site tool. Never click, prepare, export, save, or claim a download. Once all explicitly requested mastering and edit actions are complete, stop; the person saves with the visible Download WAV button.';
+
+async function completeAgentOperation(
+  operation: string,
+  result: unknown,
+  continuationPolicy:
+    | 'explicit_unfulfilled_user_actions_only'
+    | 'stop' = 'explicit_unfulfilled_user_actions_only',
+): Promise<unknown> {
+  const resolved = await result;
+  if (
+    !resolved ||
+    typeof resolved !== 'object' ||
+    !('ok' in resolved) ||
+    resolved.ok !== true
+  ) {
+    return resolved;
+  }
+
+  const {
+    nextActions: _nextActions,
+    availableActions: _availableActions,
+    ...domainResult
+  } = resolved as Record<string, unknown>;
+  const mustStop = continuationPolicy === 'stop';
+
+  return {
+    ...domainResult,
+    operation,
+    completion: {
+      status: 'complete',
+      recommendedToolCalls: [],
+      continuationPolicy,
+    },
+    fileSave: HUMAN_ONLY_FILE_SAVE,
+    assistantInstruction: mustStop
+      ? 'This Champagne action is complete. Stop calling Champagne tools. Never attempt, trigger, or claim a download. The person saves the track by clicking Download WAV.'
+      : "This Champagne action is complete. Continue with another Champagne tool only when it implements an explicit mastering or edit instruction from the user's original request that is still unfinished. Otherwise stop calling tools and summarize the completed work. Never attempt, trigger, or claim a download. If saving was requested, tell the person to click Download WAV in Champagne.",
+  };
+}
+
+async function describeAgentState(result: unknown): Promise<unknown> {
+  const resolved = await result;
+  if (!resolved || typeof resolved !== 'object') return resolved;
+  return {
+    ...(resolved as Record<string, unknown>),
+    recommendedToolCalls: [],
+    fileSave: HUMAN_ONLY_FILE_SAVE,
+  };
+}
+
 export async function registerChampagneTools(
   apiRef: MutableRefObject<StudioCommandApi | null>,
   onAvailability: (available: boolean) => void,
@@ -143,7 +202,8 @@ export async function registerChampagneTools(
       name: 'get_studio_state',
       title: 'Read Champagne studio state',
       description:
-        'Read the current local track status, rendered styles, active style, version, and valid next actions. Does not expose audio, waveform samples, or the local filename.',
+        'Read the current local track status, rendered styles, active style, version, and available capabilities. Capabilities describe what is possible; they are not recommended next actions. Does not expose audio, waveform samples, or the local filename.' +
+        HUMAN_SAVE_GUIDANCE,
       inputSchema: {
         type: 'object',
         properties: {},
@@ -154,13 +214,14 @@ export async function registerChampagneTools(
         destructiveHint: false,
         openWorldHint: false,
       },
-      execute: async () => call((api) => api.getState()),
+      execute: async () => describeAgentState(call((api) => api.getState())),
     },
     {
       name: 'analyze_track',
       title: 'Analyze the loaded track',
       description:
-        'Measure the loaded track locally and return compact objective level, peak, crest-factor, duration, and headroom findings. No audio leaves the page.',
+        'Measure the loaded track locally and return compact objective level, peak, crest-factor, duration, and headroom findings. No audio leaves the page.' +
+        HUMAN_SAVE_GUIDANCE,
       inputSchema: {
         type: 'object',
         properties: {},
@@ -172,13 +233,14 @@ export async function registerChampagneTools(
         openWorldHint: false,
       },
       execute: async (_input, context) =>
-        call((api) => api.analyzeTrack(context?.signal)),
+        describeAgentState(call((api) => api.analyzeTrack(context?.signal))),
     },
     {
       name: 'create_mastering_take',
       title: 'Create a custom mastering style',
       description:
-        'Use only when the user requests mastering or sonic changes. Create and locally render one reversible custom Champagne style from a safe baseline plus small, bounded musical adjustments. If the same request also includes cuts, fades, or speed, call those tools afterward in that order and pass each newly returned stateVersion into the next action.',
+        'Use only when the user requests mastering or sonic changes. Create and locally render one reversible custom Champagne style from a safe baseline plus small, bounded musical adjustments. If the same request also includes cuts, fades, or speed, call those tools afterward in that order and pass each newly returned stateVersion into the next action.' +
+        HUMAN_SAVE_GUIDANCE,
       inputSchema: {
         type: 'object',
         properties: {
@@ -282,19 +344,22 @@ export async function registerChampagneTools(
           ...value.adjustments,
           intensity: value.intensity ?? 0,
         };
-        return call((api) =>
-          api.createTake({
-            expectedStateVersion: value.expectedStateVersion,
-            baseStyle: value.baseStyle,
-            priorities: value.priorities,
-            constraints: value.constraints,
-            modifiers,
-            customName: value.styleName,
-            matchedDirections: [value.styleName],
-            creator: 'webmcp',
-            prompt: value.brief,
-            signal: context?.signal,
-          }),
+        return completeAgentOperation(
+          'create_mastering_take',
+          call((api) =>
+            api.createTake({
+              expectedStateVersion: value.expectedStateVersion,
+              baseStyle: value.baseStyle,
+              priorities: value.priorities,
+              constraints: value.constraints,
+              modifiers,
+              customName: value.styleName,
+              matchedDirections: [value.styleName],
+              creator: 'webmcp',
+              prompt: value.brief,
+              signal: context?.signal,
+            }),
+          ),
         );
       },
     },
@@ -302,7 +367,8 @@ export async function registerChampagneTools(
       name: 'refine_mastering_take',
       title: 'Refine a custom style',
       description:
-        'Create a reversible child style with one bounded semantic change. The source remains intact and the new result becomes the active audible master.',
+        'Create a reversible child style with one bounded semantic change. The source remains intact and the new result becomes the active audible master.' +
+        HUMAN_SAVE_GUIDANCE,
       inputSchema: {
         type: 'object',
         properties: {
@@ -359,13 +425,16 @@ export async function registerChampagneTools(
           amount: 'small' | 'medium';
           brief: string;
         };
-        return call((api) =>
-          api.refineTake({
-            ...value,
-            creator: 'webmcp',
-            prompt: value.brief,
-            signal: context?.signal,
-          }),
+        return completeAgentOperation(
+          'refine_mastering_take',
+          call((api) =>
+            api.refineTake({
+              ...value,
+              creator: 'webmcp',
+              prompt: value.brief,
+              signal: context?.signal,
+            }),
+          ),
         );
       },
     },
@@ -373,7 +442,8 @@ export async function registerChampagneTools(
       name: 'create_variations',
       title: 'Create three mastering directions',
       description:
-        'Create up to three sibling mastering styles in one transaction and select the first result. Use this for contrasting warm, open, and club-loud directions.',
+        'Create up to three sibling mastering styles in one transaction and select the first result. Use this for contrasting warm, open, and club-loud directions.' +
+        HUMAN_SAVE_GUIDANCE,
       inputSchema: {
         type: 'object',
         properties: {
@@ -414,13 +484,16 @@ export async function registerChampagneTools(
             | 'avoid_harshness'
             | 'none';
         };
-        return call((api) =>
-          api.createVariations({
-            ...value,
-            creator: 'webmcp',
-            prompt: 'Variation set directed through ChatGPT',
-            signal: context?.signal,
-          }),
+        return completeAgentOperation(
+          'create_variations',
+          call((api) =>
+            api.createVariations({
+              ...value,
+              creator: 'webmcp',
+              prompt: 'Variation set directed through ChatGPT',
+              signal: context?.signal,
+            }),
+          ),
         );
       },
     },
@@ -428,7 +501,8 @@ export async function registerChampagneTools(
       name: 'stage_comparison',
       title: 'Stage a mastering comparison',
       description:
-        'Group two or three rendered custom styles for comparison and select the first. This does not alter any rendered audio.',
+        'Group two or three rendered custom styles for comparison and select the first. This does not alter any rendered audio.' +
+        HUMAN_SAVE_GUIDANCE,
       inputSchema: {
         type: 'object',
         properties: {
@@ -451,18 +525,25 @@ export async function registerChampagneTools(
         openWorldHint: false,
       },
       execute: async (input) =>
-        call((api) =>
-          api.stageComparison({
-            ...(input as { expectedStateVersion: number; takeIds: string[] }),
-            creator: 'webmcp',
-          }),
+        completeAgentOperation(
+          'stage_comparison',
+          call((api) =>
+            api.stageComparison({
+              ...(input as {
+                expectedStateVersion: number;
+                takeIds: string[];
+              }),
+              creator: 'webmcp',
+            }),
+          ),
         ),
     },
     {
       name: 'set_trim_fades',
       title: 'Set trim and fades',
       description:
-        'Use for every cut, trim, fade-in, or fade-out instruction, including when it appears inside a mastering request. Update the non-destructive keep region and fade lengths while preserving the selected master. Values are validated against the loaded track duration; after a prior action, use that action’s returned stateVersion.',
+        'Use for every cut, trim, fade-in, or fade-out instruction, including when it appears inside a mastering request. Update the non-destructive keep region and fade lengths while preserving the selected master. Values are validated against the loaded track duration; after a prior action, use that action’s returned stateVersion.' +
+        HUMAN_SAVE_GUIDANCE,
       inputSchema: {
         type: 'object',
         properties: {
@@ -500,26 +581,30 @@ export async function registerChampagneTools(
         openWorldHint: false,
       },
       execute: async (input) =>
-        call((api) =>
-          api.setTrimFades({
-            ...(input as {
-              expectedStateVersion: number;
-              startSeconds: number;
-              endSeconds: number;
-              fadeInSeconds: number;
-              fadeOutSeconds: number;
-              fadeInCurve?: number;
-              fadeOutCurve?: number;
+        completeAgentOperation(
+          'set_trim_fades',
+          call((api) =>
+            api.setTrimFades({
+              ...(input as {
+                expectedStateVersion: number;
+                startSeconds: number;
+                endSeconds: number;
+                fadeInSeconds: number;
+                fadeOutSeconds: number;
+                fadeInCurve?: number;
+                fadeOutCurve?: number;
+              }),
+              creator: 'webmcp',
             }),
-            creator: 'webmcp',
-          }),
+          ),
         ),
     },
     {
       name: 'commit_master',
-      title: 'Prepare the selected master',
+      title: 'Select an existing mastering style',
       description:
-        'Select one rendered style as the current release-quality local 24-bit 48 kHz WAV. The person saves it with the visible Download WAV button.',
+        'Call only when the user explicitly asks to switch to, select, or finalize a previously rendered style. Make that style active and audible without rendering, preparing, exporting, or downloading. Do not call this automatically after creating or refining a master. On success, stop.' +
+        HUMAN_SAVE_GUIDANCE,
       inputSchema: {
         type: 'object',
         properties: {
@@ -541,18 +626,23 @@ export async function registerChampagneTools(
         openWorldHint: false,
       },
       execute: async (input) =>
-        call((api) =>
-          api.commitMaster({
-            ...(input as { expectedStateVersion: number; takeId: string }),
-            creator: 'webmcp',
-          }),
+        completeAgentOperation(
+          'commit_master',
+          call((api) =>
+            api.commitMaster({
+              ...(input as { expectedStateVersion: number; takeId: string }),
+              creator: 'webmcp',
+            }),
+          ),
+          'stop',
         ),
     },
     {
       name: 'set_track_speed',
-      title: 'Set playback and export speed',
+      title: 'Set track speed',
       description:
-        'Use for every speed instruction, including when it appears inside a mastering request. Set the current track speed from 50% to 150%; the change is heard immediately, updates the visible percentage and slider, and is baked into the next WAV export. 100% restores normal speed. After a prior action, use that action’s returned stateVersion.',
+        'Use for every speed instruction, including when it appears inside a mastering request. Set the current track speed from 50% to 150%; the change is heard immediately and updates the visible percentage and slider. 100% restores normal speed. After a prior action, use that action’s returned stateVersion.' +
+        HUMAN_SAVE_GUIDANCE,
       inputSchema: {
         type: 'object',
         properties: {
@@ -575,14 +665,17 @@ export async function registerChampagneTools(
         openWorldHint: false,
       },
       execute: async (input) =>
-        call((api) =>
-          api.setTrackSpeed({
-            ...(input as {
-              expectedStateVersion: number;
-              speedPercent: number;
+        completeAgentOperation(
+          'set_track_speed',
+          call((api) =>
+            api.setTrackSpeed({
+              ...(input as {
+                expectedStateVersion: number;
+                speedPercent: number;
+              }),
+              creator: 'webmcp',
             }),
-            creator: 'webmcp',
-          }),
+          ),
         ),
     },
   ];

@@ -12,7 +12,6 @@ export type StudioPhase =
   | 'ready'
   | 'rendering'
   | 'preview_ready'
-  | 'export_ready'
   | 'error';
 
 export interface StyleRecipe {

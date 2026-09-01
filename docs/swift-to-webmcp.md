@@ -99,9 +99,11 @@ They are deliberately page-bound and typed. Tool responses expose compact
 state and measurements—not audio bytes, waveform arrays, local filenames, or
 file paths.
 
-`commit_master` stages the selected take, and the person clicks **Download
-WAV** to complete the browser save. Edit-only requests preserve the selected
-master rather than silently creating another render.
+`commit_master` only selects an existing rendered take when the person
+explicitly requests that selection; it is not an automatic post-master step.
+There is no download site tool. The person clicks **Download WAV** to save the
+track. Edit-only requests preserve the selected master rather than silently
+creating another render.
 
 ## 6. Verify the result like a product, not a mockup
 

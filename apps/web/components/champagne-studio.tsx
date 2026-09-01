@@ -256,7 +256,6 @@ export function ChampagneStudio() {
   const [webmcpInvoked, setWebmcpInvoked] = useState(false);
   const [agentPaused, setAgentPaused] = useState(false);
   const [agentPanelOpen, setAgentPanelOpen] = useState(false);
-  const [, setExportReadyId] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [isDropTargeted, setIsDropTargeted] = useState(false);
@@ -513,7 +512,6 @@ export function ChampagneStudio() {
       runtimeRef.current.speedEnabled = nextEnabled;
       setSpeedPercent(nextPercent);
       setSpeedEnabled(nextEnabled);
-      setExportReadyId(null);
       return nextPercent;
     },
     [],
@@ -686,7 +684,6 @@ export function ChampagneStudio() {
       setRevisions([]);
       setActiveRevisionId(null);
       setComparisonIds([]);
-      setExportReadyId(null);
       setCurrentTime(0);
       setSpeedPercent(100);
       setSpeedEnabled(false);
@@ -987,7 +984,6 @@ export function ChampagneStudio() {
             ? [...new Set([...current, revision.id])].slice(-3)
             : [revision.id],
         );
-        setExportReadyId(null);
         setPhase('preview_ready');
         const nextVersion = bumpStateVersion();
         addReceipt({
@@ -1014,13 +1010,7 @@ export function ChampagneStudio() {
             priorities: input.priorities,
             constraints: input.constraints,
           },
-          nextActions: [
-            'refine_mastering_take',
-            'stage_comparison',
-            'set_trim_fades',
-            'set_track_speed',
-            'commit_master',
-          ],
+          masteringComplete: true,
         };
       } catch (error) {
         const cancelled =
@@ -1249,13 +1239,7 @@ export function ChampagneStudio() {
           takeIds: created.map((revision) => revision.id),
           styleNames: created.map((revision) => revision.displayName),
           summary: `Created ${created.length} audible custom styles and selected the first direction.`,
-          nextActions: [
-            'stage_comparison',
-            'refine_mastering_take',
-            'set_trim_fades',
-            'set_track_speed',
-            'commit_master',
-          ],
+          masteringComplete: true,
         };
       } catch (error) {
         const cancelled =
@@ -1317,6 +1301,8 @@ export function ChampagneStudio() {
       runtimeRef.current.comparisonIds = unique;
       setActiveRevisionId(unique[0]);
       setMonitorMastered(true);
+      setPhase('preview_ready');
+      const nextVersion = bumpStateVersion();
       addReceipt({
         creator: input.creator,
         title: 'Styles staged',
@@ -1333,13 +1319,13 @@ export function ChampagneStudio() {
       await afterPaint();
       return {
         ok: true,
-        stateVersion: stateVersionRef.current,
+        stateVersion: nextVersion,
         comparisonTakeIds: unique,
         summary:
           'The requested custom styles are grouped and the first is active.',
       };
     },
-    [addReceipt, currentTime, markWebMCP, startPlayback],
+    [addReceipt, bumpStateVersion, currentTime, markWebMCP, startPlayback],
   );
 
   const setTrimFadesCommand = useCallback(
@@ -1465,7 +1451,7 @@ export function ChampagneStudio() {
       addReceipt({
         creator: input.creator,
         title: 'Track speed updated',
-        detail: `${nextPercent}% · audible now and included in WAV export`,
+        detail: `${nextPercent}% · audible now`,
       });
       await afterPaint();
       return {
@@ -1478,129 +1464,107 @@ export function ChampagneStudio() {
     [addReceipt, applyPlaybackSpeed, bumpStateVersion, markWebMCP],
   );
 
-  const downloadCurrent = useCallback(
-    async (input: { creator: Creator; takeId?: string }) => {
-      if (exportBusyRef.current)
-        return {
-          ok: false,
-          code: 'EXPORT_BUSY',
-          message: 'A WAV download is already being prepared.',
-        };
-      const sourceTrack = runtimeRef.current.track;
-      if (!sourceTrack)
-        return { ok: false, code: 'NO_TRACK', message: 'Load a track first.' };
-      const revision = input.takeId
-        ? runtimeRef.current.revisions.find(
-            (candidate) => candidate.id === input.takeId,
-          )
-        : runtimeRef.current.revisions.find(
-            (candidate) => candidate.id === runtimeRef.current.activeRevisionId,
-          );
-      if (input.takeId && !revision)
-        return {
-          ok: false,
-          code: 'TAKE_NOT_FOUND',
-          message: 'That mastering style is not available.',
-        };
-      const styleName = revision?.displayName ?? 'Original Edit';
-      const selectedTakeId = revision?.id ?? null;
-      const currentVersion = stateVersionRef.current;
-      const prepared = preparedDownloadRef.current;
-      const anchor = downloadAnchorRef.current;
-      const requiresUserClick = input.creator !== 'manual';
-      if (
-        prepared &&
-        anchor &&
-        prepared.stateVersion === currentVersion &&
-        prepared.takeId === selectedTakeId
-      ) {
-        anchor.href = prepared.url;
-        anchor.download = prepared.fileName;
-        if (!requiresUserClick) anchor.click();
-        else setNotice('Your WAV is ready. Click Download WAV to save it.');
-        addReceipt({
-          creator: input.creator,
-          title: requiresUserClick ? 'Download ready' : 'Download initiated',
-          detail: `${styleName} · ${runtimeRef.current.speedPercent}% · 24-bit / 48 kHz WAV`,
-          revisionId: revision?.id,
-        });
-        return {
-          ok: true,
-          downloadReady: true,
-          downloadInitiated: !requiresUserClick,
-          requiresUserClick,
-          fileName: prepared.fileName,
-          stateVersion: currentVersion,
-          takeId: selectedTakeId,
-          speedPercent: runtimeRef.current.speedPercent,
-          summary: requiresUserClick
-            ? `${styleName} is ready. The user must click Download WAV in the page header to save it.`
-            : `${styleName} download initiated without remastering.`,
-        };
+  const downloadCurrent = useCallback(async () => {
+    if (exportBusyRef.current)
+      return {
+        ok: false,
+        code: 'EXPORT_BUSY',
+        message: 'A WAV download is already being prepared.',
+      };
+    const sourceTrack = runtimeRef.current.track;
+    if (!sourceTrack)
+      return { ok: false, code: 'NO_TRACK', message: 'Load a track first.' };
+    const revision = runtimeRef.current.revisions.find(
+      (candidate) => candidate.id === runtimeRef.current.activeRevisionId,
+    );
+    const styleName = revision?.displayName ?? 'Original Edit';
+    const selectedTakeId = revision?.id ?? null;
+    const currentVersion = stateVersionRef.current;
+    const prepared = preparedDownloadRef.current;
+    const anchor = downloadAnchorRef.current;
+    if (
+      prepared &&
+      anchor &&
+      prepared.stateVersion === currentVersion &&
+      prepared.takeId === selectedTakeId
+    ) {
+      anchor.href = prepared.url;
+      anchor.download = prepared.fileName;
+      anchor.click();
+      addReceipt({
+        creator: 'manual',
+        title: 'Download initiated',
+        detail: `${styleName} · ${runtimeRef.current.speedPercent}% · 24-bit / 48 kHz WAV`,
+        revisionId: revision?.id,
+      });
+      return {
+        ok: true,
+        downloadReady: true,
+        downloadInitiated: true,
+        fileName: prepared.fileName,
+        stateVersion: currentVersion,
+        takeId: selectedTakeId,
+        speedPercent: runtimeRef.current.speedPercent,
+        summary: `${styleName} download initiated without remastering.`,
+      };
+    }
+    exportBusyRef.current = true;
+    setIsExporting(true);
+    try {
+      const blob = await encodeMasterWav24(
+        revision?.buffer ?? sourceTrack.buffer,
+        runtimeRef.current.trim,
+        runtimeRef.current.speedPercent,
+      );
+      const url = URL.createObjectURL(blob);
+      const fileName = safeDownloadName(sourceTrack.name, styleName);
+      const previous = preparedDownloadRef.current;
+      preparedDownloadRef.current = {
+        url,
+        fileName,
+        stateVersion: currentVersion,
+        takeId: selectedTakeId,
+      };
+      const persistentAnchor = downloadAnchorRef.current;
+      if (!persistentAnchor) {
+        URL.revokeObjectURL(url);
+        preparedDownloadRef.current = previous;
+        throw new Error('The local download control is unavailable.');
       }
-      exportBusyRef.current = true;
-      setIsExporting(true);
-      try {
-        const blob = await encodeMasterWav24(
-          revision?.buffer ?? sourceTrack.buffer,
-          runtimeRef.current.trim,
-          runtimeRef.current.speedPercent,
-        );
-        const url = URL.createObjectURL(blob);
-        const fileName = safeDownloadName(sourceTrack.name, styleName);
-        const previous = preparedDownloadRef.current;
-        preparedDownloadRef.current = {
-          url,
-          fileName,
-          stateVersion: currentVersion,
-          takeId: selectedTakeId,
-        };
-        const persistentAnchor = downloadAnchorRef.current;
-        if (!persistentAnchor) {
-          URL.revokeObjectURL(url);
-          preparedDownloadRef.current = previous;
-          throw new Error('The local download control is unavailable.');
-        }
-        persistentAnchor.href = url;
-        persistentAnchor.download = fileName;
-        if (!requiresUserClick) persistentAnchor.click();
-        else setNotice('Your WAV is ready. Click Download WAV to save it.');
-        if (previous && previous.url !== url) {
-          URL.revokeObjectURL(previous.url);
-        }
-        addReceipt({
-          creator: input.creator,
-          title: requiresUserClick ? 'Download ready' : 'Download initiated',
-          detail: `${styleName} · ${runtimeRef.current.speedPercent}% · 24-bit / 48 kHz WAV`,
-          revisionId: revision?.id,
-        });
-        return {
-          ok: true,
-          downloadReady: true,
-          downloadInitiated: !requiresUserClick,
-          requiresUserClick,
-          fileName,
-          stateVersion: currentVersion,
-          takeId: selectedTakeId,
-          speedPercent: runtimeRef.current.speedPercent,
-          summary: requiresUserClick
-            ? `${styleName} is ready. The user must click Download WAV in the page header to save it.`
-            : `${styleName} download initiated without remastering.`,
-        };
-      } catch (error) {
-        const message =
-          error instanceof Error
-            ? error.message
-            : 'Champagne could not create the WAV download.';
-        setNotice(message);
-        return { ok: false, code: 'EXPORT_FAILED', message };
-      } finally {
-        exportBusyRef.current = false;
-        setIsExporting(false);
+      persistentAnchor.href = url;
+      persistentAnchor.download = fileName;
+      persistentAnchor.click();
+      if (previous && previous.url !== url) {
+        URL.revokeObjectURL(previous.url);
       }
-    },
-    [addReceipt],
-  );
+      addReceipt({
+        creator: 'manual',
+        title: 'Download initiated',
+        detail: `${styleName} · ${runtimeRef.current.speedPercent}% · 24-bit / 48 kHz WAV`,
+        revisionId: revision?.id,
+      });
+      return {
+        ok: true,
+        downloadReady: true,
+        downloadInitiated: true,
+        fileName,
+        stateVersion: currentVersion,
+        takeId: selectedTakeId,
+        speedPercent: runtimeRef.current.speedPercent,
+        summary: `${styleName} download initiated without remastering.`,
+      };
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Champagne could not create the WAV download.';
+      setNotice(message);
+      return { ok: false, code: 'EXPORT_FAILED', message };
+    } finally {
+      exportBusyRef.current = false;
+      setIsExporting(false);
+    }
+  }, [addReceipt]);
 
   const commitMasterCommand = useCallback(
     async (input: {
@@ -1631,16 +1595,15 @@ export function ChampagneStudio() {
           message: 'That mastering style is not available.',
         };
       if (input.creator === 'webmcp')
-        markWebMCP(`Selecting ${revision.displayName} for export`);
+        markWebMCP(`Selecting ${revision.displayName}`);
       setActiveRevisionId(revision.id);
       setMonitorMastered(true);
-      setExportReadyId(revision.id);
-      setPhase('export_ready');
+      setPhase('preview_ready');
       const nextVersion = bumpStateVersion();
       addReceipt({
         creator: input.creator,
         title: `${revision.displayName} selected`,
-        detail: '24-bit / 48 kHz WAV is staged for the Download WAV button.',
+        detail: 'Active for playback and further edits.',
         revisionId: revision.id,
       });
       if (playbackRef.current)
@@ -1653,9 +1616,8 @@ export function ChampagneStudio() {
         ok: true,
         stateVersion: nextVersion,
         takeId: revision.id,
-        exportReady: true,
-        summary: `${revision.displayName} is ready. The person can save it with the visible Download WAV button.`,
-        nextActions: [],
+        selected: true,
+        summary: `${revision.displayName} is active and audible. The requested selection is complete.`,
       };
     },
     [addReceipt, bumpStateVersion, currentTime, markWebMCP, startPlayback],
@@ -1669,7 +1631,10 @@ export function ChampagneStudio() {
         stateVersion: stateVersionRef.current,
         status: 'empty',
         styleCount: 0,
-        availableActions: ['load_track_in_ui'],
+        capabilities: {
+          available: ['load_track_in_ui'],
+          explicitUserRequestOnly: [],
+        },
         privacy: { audioShared: false },
       };
     }
@@ -1692,23 +1657,27 @@ export function ChampagneStudio() {
       trim: snapshot.trim,
       speedPercent: snapshot.speedPercent,
       speedEnabled: snapshot.speedEnabled,
-      availableActions: snapshot.revisions.length
-        ? [
-            'create_mastering_take',
-            'refine_mastering_take',
-            'create_variations',
-            'stage_comparison',
-            'set_trim_fades',
-            'set_track_speed',
-            'commit_master',
-          ]
-        : [
-            'analyze_track',
-            'create_mastering_take',
-            'create_variations',
-            'set_trim_fades',
-            'set_track_speed',
-          ],
+      capabilities: {
+        available: snapshot.revisions.length
+          ? [
+              'create_mastering_take',
+              'refine_mastering_take',
+              'create_variations',
+              'stage_comparison',
+              'set_trim_fades',
+              'set_track_speed',
+            ]
+          : [
+              'analyze_track',
+              'create_mastering_take',
+              'create_variations',
+              'set_trim_fades',
+              'set_track_speed',
+            ],
+        explicitUserRequestOnly: snapshot.revisions.length
+          ? ['commit_master']
+          : [],
+      },
       privacy: { audioShared: false, filenameShared: false },
     };
   }, []);
@@ -1742,12 +1711,15 @@ export function ChampagneStudio() {
         },
         flags: analysis.flags,
         audioShared: false,
-        nextActions: [
-          'create_mastering_take',
-          'create_variations',
-          'set_trim_fades',
-          'set_track_speed',
-        ],
+        capabilities: {
+          available: [
+            'create_mastering_take',
+            'create_variations',
+            'set_trim_fades',
+            'set_track_speed',
+          ],
+          explicitUserRequestOnly: [],
+        },
       };
     },
     [markWebMCP],
@@ -1811,7 +1783,6 @@ export function ChampagneStudio() {
       if (!revision) return;
       setActiveRevisionId(id);
       setMonitorMastered(true);
-      setExportReadyId(null);
       if (playbackRef.current)
         void startPlayback(currentTime, {
           buffer: revision.buffer,
@@ -1848,7 +1819,6 @@ export function ChampagneStudio() {
 
   const handleTrimChange = useCallback((next: TrimSettings) => {
     setTrim(next);
-    setExportReadyId(null);
   }, []);
 
   const commitManualTrim = useCallback(() => {
@@ -1867,7 +1837,7 @@ export function ChampagneStudio() {
     addReceipt({
       creator: 'manual',
       title: 'Track speed updated',
-      detail: `${runtimeRef.current.speedPercent}% · audible now and included in WAV export`,
+      detail: `${runtimeRef.current.speedPercent}% · audible now`,
     });
   }, [addReceipt, bumpStateVersion]);
 
@@ -2067,7 +2037,6 @@ export function ChampagneStudio() {
       setActiveRevisionId(null);
       setMonitorMastered(false);
       setComparisonIds([]);
-      setExportReadyId(null);
       setCurrentTime(0);
       setSpeedPercent(100);
       setSpeedEnabled(false);
@@ -2091,7 +2060,7 @@ export function ChampagneStudio() {
   }, [bumpStateVersion, stopPlayback]);
 
   const handleDownload = useCallback(async () => {
-    await downloadCurrent({ creator: 'manual' });
+    await downloadCurrent();
   }, [downloadCurrent]);
 
   const agentPayload = useMemo(
@@ -2123,8 +2092,13 @@ export function ChampagneStudio() {
           'compare',
           'trim/fades',
           'speed',
-          'stage export',
+          'select style',
         ],
+        fileSave: {
+          mode: 'human only',
+          control: 'Download WAV button',
+          availableToChatGPT: false,
+        },
       },
       excluded: ['audio bytes', 'waveform samples', 'filename', 'local path'],
     }),

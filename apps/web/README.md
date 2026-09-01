@@ -37,7 +37,7 @@ The top-level studio page imperatively registers nine page-bound tools through `
 
 Every tool calls the same command functions used by the live studio and manual fallback. Mastering and editing mutations validate a current `expectedStateVersion`, update the visible studio, and return only after the UI has had time to commit. Mixed requests are executed in order—mastering, trim/fades, then speed—while edit-only requests preserve the current master. Speed is bounded to 50–150%, with 100% at the slider center.
 
-`commit_master` stages a style. The person completes the final save with the visible **Download WAV** button.
+`commit_master` only selects an existing rendered style when the person explicitly asks for that selection. It is never an automatic post-master step. Saving is human-only: there is no download site tool, and the person uses the visible **Download WAV** button.
 
 ## Privacy boundary
 

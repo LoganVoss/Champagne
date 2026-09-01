@@ -256,17 +256,22 @@ export function WaveformEditor({
         context.fillText(label, clamp(x, 38, width - 38), 34);
       }
 
-      const playheadX =
-        duration > 0 ? clamp((currentTime / duration) * width, 0, width) : 0;
-      context.strokeStyle = '#f5dc94';
-      context.lineWidth = 1.25;
-      context.shadowColor = 'rgba(245,220,148,0.6)';
-      context.shadowBlur = 8;
-      context.beginPath();
-      context.moveTo(playheadX, 0);
-      context.lineTo(playheadX, height);
-      context.stroke();
-      context.shadowBlur = 0;
+      const playheadIsInsideKeepRegion =
+        currentTime >= trim.startSeconds - 0.001 &&
+        currentTime <= trim.endSeconds + 0.001;
+      if (playheadIsInsideKeepRegion) {
+        const playheadX =
+          duration > 0 ? clamp((currentTime / duration) * width, 0, width) : 0;
+        context.strokeStyle = '#f5dc94';
+        context.lineWidth = 1.25;
+        context.shadowColor = 'rgba(245,220,148,0.6)';
+        context.shadowBlur = 8;
+        context.beginPath();
+        context.moveTo(playheadX, 0);
+        context.lineTo(playheadX, height);
+        context.stroke();
+        context.shadowBlur = 0;
+      }
     };
 
     draw();
