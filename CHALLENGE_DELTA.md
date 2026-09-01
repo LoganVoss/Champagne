@@ -18,19 +18,19 @@ architecture notes, and verification checklist live in
 
 - Browser studio in `apps/web`
 - Local Web Audio decode, analysis, audible mastering previews, playback, and WAV export
-- Mastering Brief semantic command surface
+- ChatGPT prompt-suggestion surface plus a manual fallback brief
 - Twenty-five named mastering directions compiled across twelve bounded controls
-- Prompt-created custom styles and device-local User Presets
+- Reversible prompt-created custom mastering styles
 - Reversible style revisions and real-time original/master switching
-- Shared command functions for manual controls, the Mastering Brief, and WebMCP
+- Shared command functions for manual controls, the fallback brief, and WebMCP
 - Ten imperative top-level WebMCP tools
-- State-version conflict checks and visible action receipts
+- State-version conflict checks and visible WebMCP activity status
 - ChatGPT session pause control
 - Inspectable, redacted “What ChatGPT can see” payload
 - Five artist-supplied showcase tracks with in-studio demo switching
-- Real-time and exported 0–200% speed control
-- Prompt routing that preserves the current master for cuts, fades, speed, and downloads
-- Explicit-user-intent download action
+- Real-time and exported 50–150% speed control with 100% neutral
+- Agent routing that preserves the current master for cuts, fades, and speed
+- Explicit final save through the visible Download WAV button
 - Champagne social-preview artwork and web metadata
 
 The web implementation is intentionally honest about its current boundary: it ports Champagne’s tested style identities and a real browser DSP path, while the full native-to-WebAssembly sample-parity program remains future engineering work.

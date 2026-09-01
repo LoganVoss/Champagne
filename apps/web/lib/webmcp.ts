@@ -557,7 +557,7 @@ export async function registerChampagneTools(
       name: 'set_track_speed',
       title: 'Set playback and export speed',
       description:
-        'Use for every speed instruction, including when it appears inside a mastering request. Set the current track speed from 50% to 150%; the change is heard immediately, updates the visible percentage and switch, and is baked into the next WAV export. 100% restores normal speed and turns the speed effect off. After a prior action, use that action’s returned stateVersion.',
+        'Use for every speed instruction, including when it appears inside a mastering request. Set the current track speed from 50% to 150%; the change is heard immediately, updates the visible percentage and slider, and is baked into the next WAV export. 100% restores normal speed. After a prior action, use that action’s returned stateVersion.',
       inputSchema: {
         type: 'object',
         properties: {

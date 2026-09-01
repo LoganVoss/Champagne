@@ -1,6 +1,6 @@
 # Champagne Web
 
-Champagne Web is a local-first, WebMCP-enabled mastering studio. A person or an agent can direct the same live mastering session, hear every result, adjust trim, fades, and speed, and prepare a 24-bit / 48 kHz WAV for an explicit user download.
+Champagne Web is a local-first, WebMCP-enabled mastering studio. A person and ChatGPT can direct the same live session, hear every result, adjust trim, fades, and speed, and prepare a 24-bit / 48 kHz WAV for a final user-controlled download. When WebMCP is unavailable, manual mode exposes Champagne's four signature styles and local mastering brief.
 
 ## Run locally
 
@@ -11,9 +11,9 @@ npm run dev
 
 Open the local URL printed by the development server. Use **Demo** to load and switch among five included showcase tracks, or load your own WAV, AIFF, MP3, M4A, or FLAC file. Browser codec support varies by platform.
 
-## Mastering Magic
+## Mastering model and manual fallback
 
-The four Champagne signatures are safe engine baselines, not the limit of the prompt surface. The local intent compiler recognizes 25 named mastering directions and combines twelve bounded controls:
+The four Champagne signatures are safe engine baselines, not the limit of the prompt surface. They appear as selectable buttons only in manual mode. In a WebMCP-enabled browser, ChatGPT chooses the baseline through the registered tools while the page presents copyable prompt ideas instead of a constrained text field. The local fallback compiler recognizes 25 named mastering directions and combines twelve bounded controls:
 
 - intensity, warmth, brightness, punch, and dynamics
 - low end, presence, air, and width
@@ -36,7 +36,7 @@ The top-level studio page imperatively registers ten page-bound tools through `d
 - `commit_master`
 - `download_master`
 
-Every tool calls the same command functions used by the live studio and on-page Mastering Magic. Mutations validate a current `expectedStateVersion`, update the visible studio, and return only after the UI has had time to commit. Mixed prompts are executed in order—mastering, trim/fades, then speed—while edit-only prompts preserve the current master. Speed is bounded to 50–150%, with 100% at the slider center.
+Every tool calls the same command functions used by the live studio and manual fallback. Mastering and editing mutations validate a current `expectedStateVersion`, update the visible studio, and return only after the UI has had time to commit. Mixed requests are executed in order—mastering, trim/fades, then speed—while edit-only requests preserve the current master. Speed is bounded to 50–150%, with 100% at the slider center.
 
 `commit_master` stages a style. `download_master` prepares the current export only when the user explicitly requests one; browser security leaves the final save action on the visible **Download WAV** button.
 
@@ -73,7 +73,7 @@ npm run build
 npx tsc --noEmit
 ```
 
-For WebMCP verification, use ChatGPT’s current built-in browser or WebMCP-enabled Chrome and inspect the page’s registered tools before running the demo prompt shown in the connection drawer.
+For WebMCP verification, use ChatGPT's built-in browser or another WebMCP-enabled browser and inspect the page's registered tools before running one of the copyable demo prompts.
 
 ## Contest publishing checklist
 

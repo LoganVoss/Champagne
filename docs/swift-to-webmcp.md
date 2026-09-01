@@ -35,25 +35,28 @@ server receives the track. The remaining gap—full sample parity with every
 native Accelerate detail—is documented as future engineering rather than
 hidden behind a marketing claim.
 
-## 3. Make every musical prompt actionable
+## 3. Turn musical language into bounded controls
 
-The **Mastering Magic** field is not a four-choice switch. `apps/web/lib/studio.ts`
-contains 25 named mastering directions and 12 bounded dimensions (intensity,
-warmth, brightness, punch, dynamics, low end, presence, air, width, glue,
-density, and smoothness). A prompt can contribute several cues at once. When a
-phrase is unfamiliar or metaphorical, the compiler makes a conservative
-adaptive finish and names the resulting style; it does not reject the message.
+In a WebMCP-enabled browser, the studio presents copyable ideas while the artist
+prompts ChatGPT directly. When WebMCP is unavailable, the manual fallback keeps
+the four signature buttons and the **Mastering Magic** brief. Both paths use the
+same bounded engine. `apps/web/lib/studio.ts` contains 25 named mastering
+directions and 12 bounded dimensions (intensity, warmth, brightness, punch,
+dynamics, low end, presence, air, width, glue, density, and smoothness). A
+manual brief can contribute several cues at once; unfamiliar language receives
+a conservative adaptive finish instead of an error.
 
-Each render is reversible, receives a user-facing name, and is saved as local
-metadata in **User Presets**. The preset never stores the source PCM buffer.
+Each render is reversible and receives a user-facing name. The source PCM is
+never included in the revision metadata or exposed to WebMCP.
 
 ## 4. Put manual and agent actions on one command bus
 
 The React studio owns one command API for reading state, analyzing the track,
 creating/refining/contrasting takes, staging comparisons, changing trim/fades
-and speed, committing a take, and explicitly downloading it. Visible controls and the Mastering Magic prompt call
-these same functions that WebMCP calls. That keeps a click, a prompt, and an
-agent action audibly consistent.
+and speed, and committing a take. Visible controls and the manual fallback
+brief call the same functions that WebMCP calls. That keeps a click, a brief,
+and an agent action audibly consistent. The person completes the final save
+with the visible **Download WAV** button.
 
 Mutating commands accept the last `expectedStateVersion`. The studio increments
 the version after a successful mutation and returns a clear conflict when a
@@ -93,21 +96,21 @@ The other registered tools are `get_studio_state`, `analyze_track`,
 `refine_mastering_take`, `create_variations`, `stage_comparison`,
 `set_trim_fades`, `set_track_speed`, `commit_master`, and `download_master`.
 They are deliberately page-bound and typed. Tool responses expose compact
-state, receipts, and measurements—not audio bytes, waveform arrays, local
-filenames, or file paths.
+state and measurements—not audio bytes, waveform arrays, local filenames, or
+file paths.
 
-`commit_master` stages the selected take. `download_master` acts only after an
-explicit user request, while **Download WAV** keeps the same action available
-by hand. Edit-only prompts preserve the selected master rather than silently
-creating another render.
+`commit_master` stages the selected take. `download_master` is a compatibility
+helper that can prepare an export but cannot complete a browser save, so the
+person clicks **Download WAV**. Edit-only requests preserve the selected master
+rather than silently creating another render.
 
 ## 6. Verify the result like a product, not a mockup
 
 The web app is built with Vinext and checked with `npm run build` plus
 `npx tsc --noEmit`. The repeatable demo uses five bundled showcase recordings,
 so a reviewer can hear the result without sharing a local file. The UI exposes
-the exact “What ChatGPT can see” payload and visible action receipts so the
-human can inspect the agent connection.
+the exact “What ChatGPT can see” payload and visible connection/activity status
+so the human can inspect the agent connection.
 
 ## Challenge-period timeline
 

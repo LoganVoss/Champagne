@@ -5,13 +5,16 @@ import {
   ArrowUp,
   AudioWaveform,
   Bot,
+  Bolt,
   Cable,
   Check,
   ChevronLeft,
   ChevronRight,
   Copy,
+  Diamond,
   Download,
   Eye,
+  Flame,
   Headphones,
   Info,
   LockKeyhole,
@@ -112,6 +115,13 @@ interface PreparedDownload {
   stateVersion: number;
   takeId: string | null;
 }
+
+const styleIcons = {
+  full_power: Bolt,
+  warm_presence: Flame,
+  modern_crisp: Diamond,
+  dominant: Activity,
+} satisfies Record<StyleId, typeof Bolt>;
 
 const afterPaint = () =>
   new Promise<void>((resolve) =>
@@ -244,6 +254,7 @@ export function ChampagneStudio() {
   >(null);
   const [stateVersion, setStateVersion] = useState(0);
   const [webmcpAvailable, setWebmcpAvailable] = useState(false);
+  const [webmcpResolved, setWebmcpResolved] = useState(false);
   const [webmcpInvoked, setWebmcpInvoked] = useState(false);
   const [agentPaused, setAgentPaused] = useState(false);
   const [agentPanelOpen, setAgentPanelOpen] = useState(false);
@@ -300,6 +311,7 @@ export function ChampagneStudio() {
   const isStudioBusy =
     Boolean(track) && (phase === 'analyzing' || phase === 'rendering');
   const studioView = isLoadingView ? 'loading' : track ? 'studio' : 'selection';
+  const manualMode = webmcpResolved && !webmcpAvailable;
 
   const bumpStateVersion = useCallback(() => {
     const next = stateVersionRef.current + 1;
@@ -1779,7 +1791,10 @@ export function ChampagneStudio() {
     let cleanup: () => void = () => undefined;
     let cancelled = false;
     void registerChampagneTools(apiRef, (available) => {
-      if (!cancelled) setWebmcpAvailable(available);
+      if (!cancelled) {
+        setWebmcpAvailable(available);
+        setWebmcpResolved(true);
+      }
     }).then((dispose) => {
       if (cancelled) dispose();
       else cleanup = dispose;
@@ -1808,6 +1823,24 @@ export function ChampagneStudio() {
       if (prepared) URL.revokeObjectURL(prepared.url);
     },
     [],
+  );
+
+  const selectRevision = useCallback(
+    (id: string) => {
+      const revision = runtimeRef.current.revisions.find(
+        (candidate) => candidate.id === id,
+      );
+      if (!revision) return;
+      setActiveRevisionId(id);
+      setMonitorMastered(true);
+      setExportReadyId(null);
+      if (playbackRef.current)
+        void startPlayback(currentTime, {
+          buffer: revision.buffer,
+          analysis: revision.analysis,
+        });
+    },
+    [currentTime, startPlayback],
   );
 
   const selectSource = useCallback(
@@ -2015,6 +2048,39 @@ export function ChampagneStudio() {
     track,
   ]);
 
+  const handleStyle = useCallback(
+    (style: StyleId) => {
+      const existing = [...runtimeRef.current.revisions]
+        .reverse()
+        .find(
+          (revision) =>
+            revision.creator === 'manual' &&
+            revision.style === style &&
+            revision.displayName === STYLE_RECIPES[style].name,
+        );
+      if (existing) {
+        selectRevision(existing.id);
+        return;
+      }
+      void createTakeCommand({
+        expectedStateVersion: stateVersionRef.current,
+        baseStyle: style,
+        priorities:
+          style === 'dominant'
+            ? ['loudness', 'punch']
+            : style === 'warm_presence'
+              ? ['warmth']
+              : style === 'modern_crisp'
+                ? ['clarity']
+                : ['punch', 'loudness'],
+        constraints: [],
+        creator: 'manual',
+        prompt: `Selected ${STYLE_RECIPES[style].name}`,
+      });
+    },
+    [createTakeCommand, selectRevision],
+  );
+
   const returnHome = useCallback(() => {
     loadRequestRef.current += 1;
     stopPlayback(false);
@@ -2218,9 +2284,9 @@ export function ChampagneStudio() {
             >
               <h1>Your sound just leveled up.</h1>
               <p className="empty-copy">
-                AI guides the physics behind Champagne&apos;s mastering engine.
-                Clock every take, compare original and mastered versions, then
-                download your masterpiece.
+                ChatGPT guides the physics behind Champagne&apos;s mastering
+                engine. Clock every take, compare original and mastered
+                versions, then download your masterpiece.
               </p>
               <p className="chatgpt-start-copy">
                 Open Champagne in the ChatGPT app web browser to get started.
@@ -2246,24 +2312,24 @@ export function ChampagneStudio() {
             </div>
             <div className="empty-proof-row">
               <div>
+                <Headphones />
+                <span>
+                  <strong>Quality Control</strong>
+                  <small>Hear edits in real time.</small>
+                </span>
+              </div>
+              <div>
                 <LockKeyhole />
                 <span>
                   <strong>Privacy</strong>
-                  <small>Music is processed locally on your device.</small>
+                  <small>Audio is processed locally on your device.</small>
                 </span>
               </div>
               <div>
                 <ShieldCheck />
                 <span>
                   <strong>File Protection</strong>
-                  <small>Audio files are never overwritten.</small>
-                </span>
-              </div>
-              <div>
-                <Headphones />
-                <span>
-                  <strong>Quality Control</strong>
-                  <small>Hear your edits in real time.</small>
+                  <small>Audio is never overwritten.</small>
                 </span>
               </div>
             </div>
@@ -2415,6 +2481,47 @@ export function ChampagneStudio() {
                       </div>
                     </div>
                   </div>
+                  {manualMode && (
+                    <div className="track-style-controls transport-style-controls">
+                      <fieldset
+                        className="track-style-picker"
+                        aria-label="Signature mastering styles"
+                      >
+                        <legend className="sr-only">Signature styles</legend>
+                        {STYLE_IDS.map((style) => {
+                          const recipe = STYLE_RECIPES[style];
+                          const Icon = styleIcons[style];
+                          const readyRevision = [...revisions]
+                            .reverse()
+                            .find(
+                              (revision) =>
+                                revision.creator === 'manual' &&
+                                revision.style === style &&
+                                revision.displayName === recipe.name,
+                            );
+                          const selected =
+                            activeRevision?.id === readyRevision?.id &&
+                            monitorMastered;
+                          return (
+                            <button
+                              className={`track-style-button ${selected ? 'is-selected' : ''}`}
+                              key={style}
+                              type="button"
+                              aria-pressed={selected}
+                              aria-label={`Use ${recipe.name}`}
+                              disabled={isStudioBusy}
+                              onClick={() => handleStyle(style)}
+                            >
+                              <span>
+                                <Icon />
+                              </span>
+                              <strong>{recipe.name}</strong>
+                            </button>
+                          );
+                        })}
+                      </fieldset>
+                    </div>
+                  )}
                 </div>
               </div>
 

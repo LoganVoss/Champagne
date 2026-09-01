@@ -201,7 +201,7 @@ export function WaveformEditor({
         const boxWidth = primary ? 28 : 38;
         const boxX = clamp(x - boxWidth / 2, 2, width - boxWidth - 2);
         const boxY = primary
-          ? height - 18
+          ? height - 21
           : clamp(
               4 + ((1 - (curve ?? 1 / 3)) / 2) * (height - 22),
               4,
