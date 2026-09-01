@@ -2308,6 +2308,21 @@ export function ChampagneStudio() {
               </div>
               <p className="format-copy">WAV · AIFF · MP3 · M4A · FLAC</p>
             </div>
+            <a
+              className="mac-app-store-link"
+              href="https://apps.apple.com/us/app/champagne-mastering-studio/id6758863788?mt=12"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Download Champagne on the Mac App Store (opens in a new tab)"
+            >
+              <img
+                className="mac-app-store-badge"
+                src="/app-store-badge.svg"
+                width="156.10054"
+                height="40"
+                alt=""
+              />
+            </a>
             {notice && (
               <div className="notice-banner">
                 <Info />

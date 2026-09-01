@@ -605,6 +605,26 @@ button {
   font-weight: 670;
   letter-spacing: 0.16em;
 }
+.mac-app-store-link {
+  display: inline-flex;
+  max-width: 100%;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  margin-top: 2px;
+  border-radius: 8px;
+  line-height: 0;
+}
+.mac-app-store-link:focus-visible {
+  outline: 2px solid rgba(245, 220, 148, 0.78);
+  outline-offset: 4px;
+}
+.mac-app-store-badge {
+  display: block;
+  width: 156.1px;
+  max-width: calc(100vw - 44px);
+  height: auto;
+}
 .studio-layout {
   position: relative;
   z-index: 2;
