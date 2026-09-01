@@ -1,17 +1,11 @@
 <p align="center">
-  <img src="ReadMe.png" alt="Champagne" width="100%">
+  <img src="Champagne/Assets.xcassets/AppIcon.appiconset/Icon1024x1024.png" alt="Champagne" width="240">
 </p>
 
 <h1 align="center">Champagne by Logan Voss</h1>
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"></a>
-</p>
-
-<p align="center">
-  <a href="https://loganvoss.com/">https://loganvoss.com/</a>
-  &nbsp;&nbsp;•&nbsp;&nbsp;
-  <a href="https://www.deltaxmusic.com/champagne">https://www.deltaxmusic.com/champagne</a>
 </p>
 
 ## About
@@ -71,3 +65,8 @@ With this [contest](https://webmcp.devpost.com/?ref_feature=challenge&ref_medium
 ## Acknowledgements:
 
 Champagne for macOS was created and released a few days before the contest announcement. The React/TypeScript browser studio, local Web Audio pipeline, hosted demos, and nine WebMCP tools were built for the challenge. See [CHALLENGE_DELTA.MD](CHALLENGE_DELTA.md) and [docs/swift-to-webmcp.md](docs/swift-to-webmcp.md) for details.
+
+## Portfolio
+
+- <https://loganvoss.com/>
+- <https://www.deltaxmusic.com/champagne>
