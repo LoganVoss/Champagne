@@ -23,7 +23,7 @@ architecture notes, and verification checklist live in
 - Reversible prompt-created custom mastering styles
 - Reversible style revisions and real-time original/master switching
 - Shared command functions for manual controls, the fallback brief, and WebMCP
-- Ten imperative top-level WebMCP tools
+- Nine imperative top-level WebMCP tools
 - State-version conflict checks and visible WebMCP activity status
 - ChatGPT session pause control
 - Inspectable, redacted “What ChatGPT can see” payload

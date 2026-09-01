@@ -33,10 +33,10 @@ speed, and download when the result is ready.
 
 ChatGPT can operate the same session through WebMCP: read compact state,
 analyze the track, create a take, refine one dimension, create variations,
-stage a comparison, set trim/fades and speed, commit a take, and download after
-an explicit user request. Edit-only and download-only prompts preserve the
-current master. Audio bytes, waveform samples, filename, and local path never
-leave the browser.
+stage a comparison, set trim/fades and speed, and commit a take. The person
+completes the final save with the visible **Download WAV** button. Edit-only
+prompts preserve the current master. Audio bytes, waveform samples, filename,
+and local path never leave the browser.
 
 ## Why this is a strong WebMCP use case
 
@@ -68,8 +68,8 @@ audible state. In this build:
    feedback grounded in what they actually hear.
 5. ChatGPT can refine one dimension, create contrasting siblings, or stage a
    comparison without destroying the source or the previous take.
-6. The person or agent applies the requested trim, fade, and speed changes; a
-   download begins only after the person asks for one or clicks the button.
+6. The person or agent applies the requested trim, fade, and speed changes; the
+   person completes the final save with the visible **Download WAV** button.
 
 That loop—semantic intent → local audible render → human listening → precise
 agent refinement—was difficult to make trustworthy with ordinary browser
@@ -78,7 +78,7 @@ automation.
 ## How WebMCP is implemented
 
 `apps/web/lib/webmcp.ts` checks for the page's `document.modelContext` and
-imperatively registers ten tools:
+imperatively registers nine tools:
 
 - `get_studio_state`
 - `analyze_track`
@@ -89,7 +89,6 @@ imperatively registers ten tools:
 - `set_trim_fades`
 - `set_track_speed`
 - `commit_master`
-- `download_master`
 
 Each tool has an explicit JSON input schema, safe bounds, read/write
 annotations, and an abort signal. `apps/web/components/champagne-studio.tsx`
@@ -128,10 +127,10 @@ reference implementation.
   navigation.
 - Original/Mastered A/B listening, real-time playback, trim handles, and
   curved fade-in/fade-out handles, plus 0–200% speed control.
-- Ten semantic WebMCP tools with state-version conflict checks and visible
+- Nine semantic WebMCP tools with state-version conflict checks and visible
   action receipts.
 - Five bundled demo tracks, so reviewers do not need a local file.
-- Explicit-request download action; source audio is never overwritten and
+- Explicit final download button; source audio is never overwritten and
   edit-only prompts never trigger a remaster.
 
 ## Architecture
@@ -155,7 +154,8 @@ reference implementation.
 4. Play Mastered, switch between takes, and inspect the new named style in User
    Presets. Try a second prompt or ask ChatGPT to refine/create variations.
 5. Prompt “keep this master, cut two seconds from each end, fade the first and
-   last second, set speed to 75%, then download.” Confirm no new master is rendered.
+   last second, and set speed to 75%.” Confirm no new master is rendered, then
+   click **Download WAV**.
 6. Open the tools drawer and inspect the compact “What ChatGPT can see” payload.
 
 For a local run:
@@ -191,7 +191,7 @@ Capture these frames for the final submission:
    Presets.
 3. Original/Mastered waveform and audible A/B state.
 4. ChatGPT site-tools drawer showing the semantic tool connection.
-5. Trim/fade handles, speed slider, and an explicitly requested download.
+5. Trim/fade handles, speed slider, and the final **Download WAV** click.
 
 ## Readiness and known limitations
 
@@ -233,7 +233,7 @@ them:
 
 The draft is written to make the four official criteria easy to verify:
 
-- **WebMCP Leverage:** ten non-trivial typed tools on one shared command
+- **WebMCP Leverage:** nine non-trivial typed tools on one shared command
   bus, with state/version safety and audible results.
 - **Execution:** runnable live site, bundled demo, local rendering, and clear
   setup instructions.

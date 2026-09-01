@@ -27,7 +27,7 @@ voiceover captured clearly.
 | 1:10–1:32 | Let the gold loading bar finish; switch Original/Mastered and play a short A/B | “The result is immediately audible. I can compare the untouched track and the new take in place, then ask for another direction if the balance is not right.” |
 | 1:32–1:55 | In ChatGPT, call `create_variations` or `refine_mastering_take`; show the new User Preset | “Now the agent is operating the same command bus. It can create contrasting takes or refine one dimension, while every version stays reversible and appears in User Presets.” |
 | 1:55–2:12 | Call `stage_comparison`; play two takes and switch between them | “The human remains the listener and decision-maker. ChatGPT stages the comparison; I decide which one actually feels right.” |
-| 2:12–2:28 | Ask ChatGPT to preserve the master, cut/fade the ends, set 75% speed, and download; show the controls update | “Cuts, fades, speed, and download are complete agent actions too. Because I only asked for edits, Champagne preserves the master instead of rendering a new one.” |
+| 2:12–2:28 | Ask ChatGPT to preserve the master, cut/fade the ends, and set 75% speed; show the controls update, then click **Download WAV** | “Cuts, fades, and speed are complete agent actions. The final save remains mine through the visible Download WAV button.” |
 | 2:28–2:35 | End on the studio and privacy line | “That is Champagne: a private audio instrument that people and agents can play together.” |
 
 ## Editing checklist
@@ -36,7 +36,7 @@ voiceover captured clearly.
 - Make at least one before/after moment audible, not just visual.
 - Leave the WebMCP tool names legible for a second or two.
 - Show the custom style name in User Presets, the speed slider moving, the
-  targeted edits, and the explicitly requested download.
+  targeted edits, and the final **Download WAV** click.
 - Do not show local file paths, private emails, API tokens, or browser dev
   secrets.
 - Add captions for the prompt and the two most important voiceover lines.

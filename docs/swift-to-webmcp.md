@@ -65,7 +65,7 @@ silently undoing a person's newer listening decision.
 
 ## 5. Register semantic WebMCP tools
 
-The page registers ten imperative tools in `apps/web/lib/webmcp.ts` using the
+The page registers nine imperative tools in `apps/web/lib/webmcp.ts` using the
 page's `document.modelContext`:
 
 ```ts
@@ -94,15 +94,14 @@ await modelContext?.registerTool({
 
 The other registered tools are `get_studio_state`, `analyze_track`,
 `refine_mastering_take`, `create_variations`, `stage_comparison`,
-`set_trim_fades`, `set_track_speed`, `commit_master`, and `download_master`.
+`set_trim_fades`, `set_track_speed`, and `commit_master`.
 They are deliberately page-bound and typed. Tool responses expose compact
 state and measurements—not audio bytes, waveform arrays, local filenames, or
 file paths.
 
-`commit_master` stages the selected take. `download_master` is a compatibility
-helper that can prepare an export but cannot complete a browser save, so the
-person clicks **Download WAV**. Edit-only requests preserve the selected master
-rather than silently creating another render.
+`commit_master` stages the selected take, and the person clicks **Download
+WAV** to complete the browser save. Edit-only requests preserve the selected
+master rather than silently creating another render.
 
 ## 6. Verify the result like a product, not a mockup
 

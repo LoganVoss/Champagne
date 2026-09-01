@@ -23,7 +23,7 @@ Each direction creates and activates a descriptively named custom style for the 
 
 ## WebMCP
 
-The top-level studio page imperatively registers ten page-bound tools through `document.modelContext.registerTool`:
+The top-level studio page imperatively registers nine page-bound tools through `document.modelContext.registerTool`:
 
 - `get_studio_state`
 - `analyze_track`
@@ -34,11 +34,10 @@ The top-level studio page imperatively registers ten page-bound tools through `d
 - `set_trim_fades`
 - `set_track_speed`
 - `commit_master`
-- `download_master`
 
 Every tool calls the same command functions used by the live studio and manual fallback. Mastering and editing mutations validate a current `expectedStateVersion`, update the visible studio, and return only after the UI has had time to commit. Mixed requests are executed in order—mastering, trim/fades, then speed—while edit-only requests preserve the current master. Speed is bounded to 50–150%, with 100% at the slider center.
 
-`commit_master` stages a style. `download_master` prepares the current export only when the user explicitly requests one; browser security leaves the final save action on the visible **Download WAV** button.
+`commit_master` stages a style. The person completes the final save with the visible **Download WAV** button.
 
 ## Privacy boundary
 

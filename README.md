@@ -1,96 +1,67 @@
-# Champagne
+![Champagne mastering studio](ReadMe.png)
 
-Champagne is a music mastering studio where an artist and ChatGPT put the final
-touches on audio together. The artist describes the sound they want; ChatGPT
-uses WebMCP to choose a proven baseline, make small bounded refinements, and
-coordinate trims, fades, and speed inside the live studio.
+# Champagne by Logan Voss (DeltaX)
 
-Champagne was designed especially for AI-generated music from providers like
-Suno. After more than 15 years producing, I often heard AI tracks that felt thin
-or unfinished. I built Champagne to bring them to life by shaping the waveform's
-balance, dynamics, width, and level.
+<https://loganvoss.com/>
 
-**Live studio:** [champagne.vossx.chatgpt.site](https://champagne.vossx.chatgpt.site/)
+<https://www.deltaxmusic.com/champagne>
 
-**License:** [MIT](LICENSE). See [ASSET_LICENSES.md](ASSET_LICENSES.md) for the
-five showcase recordings and brand assets.
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-## Try it in one prompt
+## About
 
-1. Open Champagne in ChatGPT's browser.
-2. Select your own audio or click **Demo** to load a showcase track.
-3. Ask ChatGPT for the complete result you want:
+Champagne is a music mastering studio that enables artists and ChatGPT to put the final
+touches on audio together. The artist describes the finished sound they want, and ChatGPT
+uses WebMCP to select a signature style, perform bounded refinements,
+coordinate trims, fades, and adjustments to the audio speed.
 
-   > Create a vibrant, electric, and powerful master. Trim the first and last
-   > second. Fade the start and finish for two seconds. Increase speed by 10%.
+Champagne is designed specifically for AI-generated music. AI-generated music is naturally thin out-of-the-box. Champagne fixes this by improving the waveform's balance, dynamics, width, and levels. **Champagne makes your AI song radio-ready in seconds.**
 
-4. Compare **Original** and **Mastered**, then keep talking or edit by hand.
-5. Click **Download WAV** when the track is ready.
+## Why WebMCP?
 
-Without WebMCP, Champagne opens in manual mode with four signature styles, a
-local mastering brief, waveform editing, A/B playback, and a 50–150% speed
-slider.
+Champagne is a strong fit for WebMCP because it gives artists the ability to precisely navigate the mastering process using a detailed prompt. Champagne with WebMCP creates a better user experience than manual tinkering because ChatGPT enables finer tuning beyond preset signature styles. This enables a more dialed in user experience by giving the artists more control over the final product.
 
-## Why WebMCP
+## WebMCP Integration:
 
-Mastering is technical and subjective. Artists think in goals such as warm,
-dominant, powerful, smooth, or airy—not in dozens of DSP parameters.
+I implemented WebMCP by integrating nine page-bound tools through `document.modelContext.registerTool`.
 
-WebMCP gives ChatGPT typed controls instead of making it guess at page pixels.
-It can read compact studio state, choose a safe baseline, coordinate a complete
-mastering and editing pass, and use the audible result as context for the next
-request.
-
-- One prompt can combine mastering, trims, fades, and speed.
-- Follow-ups preserve the current master unless the artist requests a new one.
-- Manual and agent actions stay synchronized in the same live studio.
-- Four proven baselines and bounded refinements keep results musical.
-- The artist keeps the listening decision and final file save.
-
-The original Champagne macOS app offered four finished mastering signatures.
-The WebMCP studio turns the safe musical space behind them into a conversational
-instrument—something the preset-only interface could not expose.
-
-## How it works
-
-Champagne registers ten page-bound tools through
-`document.modelContext.registerTool`. They call the same command functions as
-the visible studio:
+They call the same command functions as the visible studio:
 
 - Inspect: `get_studio_state`, `analyze_track`
-- Master: `create_mastering_take`, `refine_mastering_take`, `create_variations`
+- Master: `create_mastering_taken`, `refine_mastering_take`, `create_variations`
 - Compare: `stage_comparison`, `commit_master`
 - Edit: `set_trim_fades`, `set_track_speed`
-- Prepare export: `download_master`
 
-ChatGPT can select one baseline, refine musical controls from −1 to +1, set
-fades up to 30 seconds, and change speed from 50% to 150%. The export tool can
-prepare a result, but the artist clicks **Download WAV** to save it.
+ChatGPT can select a signature mastering style, refine tonal adjustments from -1 to +1, set fades up to 30 seconds and change speed from 50% to 150%.
 
-Every mutation checks the studio state version, so a stale agent action cannot
-overwrite a newer human decision. Mastering takes are reversible, and edit-only
-actions preserve the selected master.
+Tonal adjustments editable by ChatGPT include:
 
-User audio is decoded, analyzed, rendered, played, and exported locally in the
-browser. WebMCP payloads exclude audio bytes, waveforms, filenames, and local
-paths. The source file is never overwritten.
+- **Warmth**: Emphasizes richer low-mid tones; adds body and reduces a sterile feel.
+- **Brightness**: Raises the sense of treble detail and edge; too much can become sharp.
+- **Punch**: Makes drums and accents hit more decisively, especially at the start of notes.
+- **Dynamics**: Controls contrast between quieter and louder moments. More preserves movement; less makes the track more consistently loud.
+- **Low end**: Adjusts bass and sub-bass weight. More adds foundation; less cleans up boom or mud.
+- **Presence**: Brings key midrange material forward, especially vocals, snare crack, guitars, and lead instruments.
+- **Air**: Adds the very top-end openness and shimmer above the main brightness range.
+- **Width**: Expands or narrows the stereo image. More feels larger and more immersive; too much can weaken mono compatibility.
+- **Glue**: Adds cohesive compression-like binding so instruments feel like one record rather than separate elements.
+- **Density:** Increases perceived fullness and sustained energy, often making the mix feel thicker and louder.
+- **Smoothness**: Softens rough edges, harshness, and overly aggressive peaks for a more polished result.
 
-## Challenge work
+Every mutation checks the studio state version, so stale agent actions cannot overwrite a new human decision. Audio is decoded, analyzed, rendered, played, and exported locally in the user’s browser. WebMCP payloads exclude audio bytes, waveforms, filenames, and local paths. The source file is never overwritten.
 
-Champagne predates the challenge as a native SwiftUI/macOS app. The
-React/TypeScript browser studio, local Web Audio pipeline, hosted demos, and ten
-WebMCP tools were built for the challenge. See
-[CHALLENGE_DELTA.md](CHALLENGE_DELTA.md) and
-[docs/swift-to-webmcp.md](docs/swift-to-webmcp.md) for details.
+The artist always finishes the mastering process by clicking the Download WAV button.
 
-## Run locally
+**People and agents can now work together to fine tune their music, bringing the mastering process into the next dimension of technology.**
 
-Requires Node.js 22.13 or newer.
+## Acknowledgements:
 
-```bash
-cd apps/web
-npm ci
-npm run dev
-```
+Champagne for macOS was created and released a few days before the contest announcement. The React/TypeScript browser studio, local Web Audio pipeline, hosted demos, and nine WebMCP tools were built for the challenge. See [CHALLENGE_DELTA.MD](CHALLENGE_DELTA.md) and [docs/swift-to-webmcp.md](docs/swift-to-webmcp.md) for details.
 
-Release checks: `npm run build` and `npx tsc --noEmit`.
+## Creativity / Ambition / Novelty
+
+Other solutions exist for this type of work, but they are guarded behind individual track paywalls (up to $11.99 per song) or $100+ per year subscriptions - (**No thanks!**)
+
+Champagne was originally designed to be one [price](https://apps.apple.com/us/app/champagne-mastering-studio/id6758863788?mt=12), unlimited masters forever.
+
+With this [contest](https://webmcp.devpost.com/?ref_feature=challenge&ref_medium=your-open-hackathons&ref_content=Submissions+open&_gl=1*ooi7p3*_gcl_au*MTg5NTk5NTY2OS4xNzg3Njg5NDU0*_ga*MTM2NjI4MjM1OS4xNzg3Njg5NDU0*_ga_0YHJK3Y10M*czE3ODgyNzg1ODMkbzEyJGcwJHQxNzg4Mjc4NTgzJGo2MCRsMCRoMA..), I’ve decided to open source the magic physics, allowing anyone to build their own version for free. The Champagne WebMCP-enabled website will also remain online for artists to use freely, as many times as they’d like. :-)

@@ -1602,25 +1602,6 @@ export function ChampagneStudio() {
     [addReceipt],
   );
 
-  const downloadMasterCommand = useCallback(
-    async (input: {
-      expectedStateVersion?: number;
-      takeId?: string;
-      creator: Creator;
-    }) => {
-      if (input.creator === 'webmcp' && runtimeRef.current.agentPaused)
-        return {
-          ok: false,
-          code: 'AGENT_PAUSED',
-          message: 'ChatGPT control is paused in Champagne.',
-        };
-      if (input.creator === 'webmcp')
-        markWebMCP('Preparing the current track for Download WAV');
-      return downloadCurrent(input);
-    },
-    [downloadCurrent, markWebMCP],
-  );
-
   const commitMasterCommand = useCallback(
     async (input: {
       expectedStateVersion: number;
@@ -1782,7 +1763,6 @@ export function ChampagneStudio() {
     setTrimFades: (input) => setTrimFadesCommand(input),
     setTrackSpeed: (input) => setTrackSpeedCommand(input),
     commitMaster: (input) => commitMasterCommand(input),
-    downloadMaster: (input) => downloadMasterCommand(input),
   };
 
   useEffect(() => {
@@ -2029,10 +2009,9 @@ export function ChampagneStudio() {
       });
     }
     if (actions.shouldDownload) {
-      await downloadMasterCommand({
-        expectedStateVersion: stateVersionRef.current,
-        creator: 'brief',
-      });
+      setNotice(
+        'Click Download WAV in the page header to save the current track.',
+      );
     }
     setBrief('');
   }, [
@@ -2040,7 +2019,6 @@ export function ChampagneStudio() {
     brief,
     createTakeCommand,
     createVariationsCommand,
-    downloadMasterCommand,
     setTrackSpeedCommand,
     setTrimFadesCommand,
     track,

@@ -98,11 +98,6 @@ export interface StudioCommandApi {
     takeId: string;
     creator: 'webmcp';
   }) => Promise<unknown>;
-  downloadMaster: (input: {
-    expectedStateVersion?: number;
-    takeId?: string;
-    creator: 'webmcp';
-  }) => Promise<unknown>;
 }
 
 const stateVersion = {
@@ -586,43 +581,6 @@ export async function registerChampagneTools(
               expectedStateVersion: number;
               speedPercent: number;
             }),
-            creator: 'webmcp',
-          }),
-        ),
-    },
-    {
-      name: 'download_master',
-      title: 'Prepare the current track for download',
-      description:
-        'This helper can prepare the selected current master as a local 24-bit 48 kHz WAV, but it cannot complete a browser download. Do not suggest it as part of a workflow. The person should click the visible Download WAV button to save. Call this only when the user explicitly asks Champagne to prepare the WAV first, and never claim the file downloaded automatically. The version is optional and a stale version will not block preparation.',
-      inputSchema: {
-        type: 'object',
-        properties: {
-          expectedStateVersion: {
-            ...stateVersion,
-            description:
-              'Optional version returned by get_studio_state or the prior action. A stale value does not block an explicit download.',
-          },
-          takeId: {
-            type: 'string',
-            minLength: 1,
-            maxLength: 64,
-            description:
-              'Optional rendered style ID. Omit it to download the current selected master.',
-          },
-        },
-        additionalProperties: false,
-      },
-      annotations: {
-        readOnlyHint: false,
-        destructiveHint: false,
-        idempotentHint: false,
-        openWorldHint: false,
-      },
-      execute: async (input) =>
-        call((api) =>
-          api.downloadMaster({
-            ...(input as { expectedStateVersion?: number; takeId?: string }),
             creator: 'webmcp',
           }),
         ),

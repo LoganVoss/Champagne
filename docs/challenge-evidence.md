@@ -29,7 +29,8 @@ Accelerate mastering, four signatures, playback/A-B, trim/fades, and WAV
 export. The browser studio, local Web Audio renderer, Mastering Magic command
 surface, User Presets, shared command bus, WebMCP tools, visible receipts,
 redacted state, bundled showcase tracks, real-time speed, targeted edit routing,
-and the explicit-user-intent download action are challenge-period additions.
+and the explicit human-controlled **Download WAV** action are challenge-period
+additions.
 
 ## Dated code ledger
 
@@ -64,7 +65,8 @@ Before sharing the link with Devpost:
 - [ ] The live URL loads without a private login or local-file dependency.
 - [ ] **Demo** loads Motorcycle and the arrow control switches among all five bundled tracks.
 - [ ] ChatGPT's in-app browser (or Chrome 149+ with WebMCP enabled) can inspect
-  the ten registered tools and complete prompt → render → targeted edit → download flows.
+  the nine registered tools and complete prompt → render → targeted edit flows,
+  followed by the visible **Download WAV** click.
 - [ ] The video is public, under three minutes, and includes spoken audio.
 - [ ] No API keys, tokens, private paths, or local credentials are committed.
 
