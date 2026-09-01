@@ -9,6 +9,7 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
+  Copy,
   Download,
   Eye,
   Headphones,
@@ -238,6 +239,9 @@ export function ChampagneStudio() {
   const [, setActivity] = useState<ActivityReceipt[]>([]);
   const [comparisonIds, setComparisonIds] = useState<string[]>([]);
   const [suggestionIndex, setSuggestionIndex] = useState(0);
+  const [copiedSuggestionIndex, setCopiedSuggestionIndex] = useState<
+    number | null
+  >(null);
   const [stateVersion, setStateVersion] = useState(0);
   const [webmcpAvailable, setWebmcpAvailable] = useState(false);
   const [webmcpInvoked, setWebmcpInvoked] = useState(false);
@@ -303,6 +307,46 @@ export function ChampagneStudio() {
     setStateVersion(next);
     return next;
   }, []);
+
+  const copyCurrentSuggestion = useCallback(async () => {
+    const suggestion = PROMPT_SUGGESTIONS[suggestionIndex];
+
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(suggestion);
+      } else {
+        const focusedElement = document.activeElement as HTMLElement | null;
+        const textarea = document.createElement('textarea');
+        textarea.value = suggestion;
+        textarea.setAttribute('readonly', '');
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+
+        try {
+          textarea.focus();
+          textarea.select();
+          const executeCopy = (
+            document as unknown as {
+              execCommand(command: string): boolean;
+            }
+          ).execCommand.bind(document);
+          if (!executeCopy('copy')) {
+            throw new Error('Copy command was unavailable.');
+          }
+        } finally {
+          textarea.remove();
+          focusedElement?.focus();
+        }
+      }
+
+      setCopiedSuggestionIndex(suggestionIndex);
+    } catch {
+      setNotice(
+        'Champagne could not copy that prompt. Please copy it manually.',
+      );
+    }
+  }, [suggestionIndex]);
 
   const addReceipt = useCallback(
     (receipt: Omit<ActivityReceipt, 'id' | 'time'>) => {
@@ -547,6 +591,7 @@ export function ChampagneStudio() {
     )
       return;
     const timer = window.setInterval(() => {
+      setCopiedSuggestionIndex(null);
       setSuggestionIndex(
         (current) => (current + 1) % PROMPT_SUGGESTIONS.length,
       );
@@ -2446,11 +2491,29 @@ export function ChampagneStudio() {
                     aria-label="Prompt ideas for ChatGPT"
                   >
                     <h2>Ask ChatGPT</h2>
-                    <p>
-                      <span key={suggestionIndex}>
-                        {PROMPT_SUGGESTIONS[suggestionIndex]}
-                      </span>
-                    </p>
+                    <div className="chatgpt-prompt-content">
+                      <p>
+                        <span key={suggestionIndex}>
+                          {PROMPT_SUGGESTIONS[suggestionIndex]}
+                        </span>
+                      </p>
+                      <button
+                        type="button"
+                        className="copy-suggestion-button"
+                        onClick={() => void copyCurrentSuggestion()}
+                      >
+                        {copiedSuggestionIndex === suggestionIndex ? (
+                          <Check aria-hidden="true" />
+                        ) : (
+                          <Copy aria-hidden="true" />
+                        )}
+                        <span aria-live="polite">
+                          {copiedSuggestionIndex === suggestionIndex
+                            ? 'Copied'
+                            : 'Copy prompt'}
+                        </span>
+                      </button>
+                    </div>
                   </div>
                 ) : (
                   <div className="composer">
