@@ -15,9 +15,7 @@ import {
   Download,
   Eye,
   Flame,
-  Headphones,
   Info,
-  LockKeyhole,
   Music2,
   Pause,
   Play,
@@ -2309,29 +2307,6 @@ export function ChampagneStudio() {
                 </Button>
               </div>
               <p className="format-copy">WAV · AIFF · MP3 · M4A · FLAC</p>
-            </div>
-            <div className="empty-proof-row">
-              <div>
-                <Headphones />
-                <span>
-                  <strong>Quality Control</strong>
-                  <small>Hear edits in real time.</small>
-                </span>
-              </div>
-              <div>
-                <LockKeyhole />
-                <span>
-                  <strong>Privacy</strong>
-                  <small>Audio is processed locally on your device.</small>
-                </span>
-              </div>
-              <div>
-                <ShieldCheck />
-                <span>
-                  <strong>File Protection</strong>
-                  <small>Audio is never overwritten.</small>
-                </span>
-              </div>
             </div>
             {notice && (
               <div className="notice-banner">
