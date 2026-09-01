@@ -2287,7 +2287,7 @@ export function ChampagneStudio() {
                 versions, then download your masterpiece.
               </p>
               <p className="chatgpt-start-copy">
-                Open Champagne in the ChatGPT app web browser to get started.
+                Open Champagne in the ChatGPT web browser to get started.
               </p>
               <div className="empty-actions">
                 <Button
