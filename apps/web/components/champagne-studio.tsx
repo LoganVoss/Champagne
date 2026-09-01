@@ -5,15 +5,12 @@ import {
   ArrowUp,
   AudioWaveform,
   Bot,
-  Bolt,
   Cable,
   Check,
   ChevronLeft,
   ChevronRight,
-  Diamond,
   Download,
   Eye,
-  Flame,
   Headphones,
   Info,
   LockKeyhole,
@@ -114,13 +111,6 @@ interface PreparedDownload {
   stateVersion: number;
   takeId: string | null;
 }
-
-const styleIcons = {
-  full_power: Bolt,
-  warm_presence: Flame,
-  modern_crisp: Diamond,
-  dominant: Activity,
-} satisfies Record<StyleId, typeof Bolt>;
 
 const afterPaint = () =>
   new Promise<void>((resolve) =>
@@ -448,6 +438,7 @@ export function ChampagneStudio() {
   const applyPlaybackSpeed = useCallback(
     (requestedPercent: number, enabled = true) => {
       const nextPercent = round(clamp(requestedPercent, 50, 150), 1);
+      const nextEnabled = enabled && nextPercent !== 100;
       const nextRate = nextPercent / 100;
       const playback = playbackRef.current;
       if (playback) {
@@ -465,9 +456,9 @@ export function ChampagneStudio() {
         setCurrentTime(position);
       }
       runtimeRef.current.speedPercent = nextPercent;
-      runtimeRef.current.speedEnabled = enabled;
+      runtimeRef.current.speedEnabled = nextEnabled;
       setSpeedPercent(nextPercent);
-      setSpeedEnabled(enabled);
+      setSpeedEnabled(nextEnabled);
       setExportReadyId(null);
       return nextPercent;
     },
@@ -559,7 +550,7 @@ export function ChampagneStudio() {
       setSuggestionIndex(
         (current) => (current + 1) % PROMPT_SUGGESTIONS.length,
       );
-    }, 5200);
+    }, 7600);
     return () => window.clearInterval(timer);
   }, [brief]);
 
@@ -1774,24 +1765,6 @@ export function ChampagneStudio() {
     [],
   );
 
-  const selectRevision = useCallback(
-    (id: string) => {
-      const revision = runtimeRef.current.revisions.find(
-        (candidate) => candidate.id === id,
-      );
-      if (!revision) return;
-      setActiveRevisionId(id);
-      setMonitorMastered(true);
-      setExportReadyId(null);
-      if (playbackRef.current)
-        void startPlayback(currentTime, {
-          buffer: revision.buffer,
-          analysis: revision.analysis,
-        });
-    },
-    [currentTime, startPlayback],
-  );
-
   const selectSource = useCallback(
     (mastered: boolean) => {
       setMonitorMastered(mastered);
@@ -1841,25 +1814,6 @@ export function ChampagneStudio() {
       detail: `${runtimeRef.current.speedPercent}% · audible now and included in WAV export`,
     });
   }, [addReceipt, bumpStateVersion]);
-
-  const toggleSpeedControl = useCallback(
-    (enabled: boolean) => {
-      const nextPercent = applyPlaybackSpeed(
-        enabled ? runtimeRef.current.speedPercent : 100,
-        enabled,
-      );
-      committedSpeedRef.current = nextPercent;
-      bumpStateVersion();
-      addReceipt({
-        creator: 'manual',
-        title: enabled ? 'Track speed enabled' : 'Track speed reset',
-        detail: enabled
-          ? `${nextPercent}% · ready for live adjustment`
-          : '100% · normal playback and export speed',
-      });
-    },
-    [addReceipt, applyPlaybackSpeed, bumpStateVersion],
-  );
 
   const submitBrief = useCallback(async () => {
     const value = brief.trim();
@@ -2015,38 +1969,6 @@ export function ChampagneStudio() {
     setTrimFadesCommand,
     track,
   ]);
-
-  const handleStyle = useCallback(
-    (style: StyleId) => {
-      const existing = [...runtimeRef.current.revisions]
-        .reverse()
-        .find(
-          (revision) =>
-            revision.style === style &&
-            revision.displayName === STYLE_RECIPES[style].name,
-        );
-      if (existing) {
-        selectRevision(existing.id);
-        return;
-      }
-      void createTakeCommand({
-        expectedStateVersion: stateVersionRef.current,
-        baseStyle: style,
-        priorities:
-          style === 'dominant'
-            ? ['loudness', 'punch']
-            : style === 'warm_presence'
-              ? ['warmth']
-              : style === 'modern_crisp'
-                ? ['clarity']
-                : ['punch', 'loudness'],
-        constraints: [],
-        creator: 'manual',
-        prompt: `Selected ${STYLE_RECIPES[style].name}`,
-      });
-    },
-    [createTakeCommand, selectRevision],
-  );
 
   const returnHome = useCallback(() => {
     loadRequestRef.current += 1;
@@ -2424,25 +2346,14 @@ export function ChampagneStudio() {
                       <div className="speed-control">
                         <div className="speed-control-head">
                           <span>Track Speed</span>
-                          <Switch
-                            className="speed-toggle"
-                            size="sm"
-                            checked={speedEnabled}
-                            onCheckedChange={toggleSpeedControl}
-                            aria-label="Enable track speed control"
-                          />
                         </div>
                         <strong className="speed-value">{speedPercent}%</strong>
-                        <div
-                          className="speed-slider-wrap"
-                          data-disabled={!speedEnabled}
-                        >
+                        <div className="speed-slider-wrap">
                           <Slider
                             aria-label="Track speed percentage"
                             min={50}
                             max={150}
                             step={1}
-                            disabled={!speedEnabled}
                             value={[speedPercent]}
                             onValueChange={(values) =>
                               applyPlaybackSpeed(
@@ -2458,53 +2369,6 @@ export function ChampagneStudio() {
                         </div>
                       </div>
                     </div>
-                  </div>
-                  <div className="track-style-controls transport-style-controls">
-                    <fieldset
-                      className="track-style-picker"
-                      aria-label="Signature mastering styles"
-                    >
-                      <legend className="sr-only">Signature styles</legend>
-                      {STYLE_IDS.map((style) => {
-                        const recipe = STYLE_RECIPES[style];
-                        const Icon = styleIcons[style];
-                        const readyRevision = [...revisions]
-                          .reverse()
-                          .find(
-                            (revision) =>
-                              revision.style === style &&
-                              revision.displayName === recipe.name,
-                          );
-                        const selected =
-                          activeRevision?.id === readyRevision?.id &&
-                          monitorMastered;
-                        return (
-                          <button
-                            className={`track-style-button ${selected ? 'is-selected' : ''}`}
-                            key={style}
-                            type="button"
-                            aria-pressed={selected}
-                            aria-label={`Use ${recipe.name}`}
-                            disabled={isStudioBusy}
-                            onClick={() => handleStyle(style)}
-                          >
-                            <span>
-                              <Icon />
-                            </span>
-                            <strong>{recipe.name}</strong>
-                          </button>
-                        );
-                      })}
-                    </fieldset>
-                    {isStudioBusy && (
-                      <output
-                        className="studio-busy-indicator"
-                        aria-live="polite"
-                      >
-                        <i aria-hidden="true" />
-                        Loading...
-                      </output>
-                    )}
                   </div>
                 </div>
               </div>
@@ -2526,6 +2390,15 @@ export function ChampagneStudio() {
                     )}
                   </div>
                   <div className="brief-header-tools">
+                    {isStudioBusy && (
+                      <output
+                        className="studio-busy-indicator"
+                        aria-live="polite"
+                      >
+                        <i aria-hidden="true" />
+                        Loading...
+                      </output>
+                    )}
                     <Dialog>
                       <DialogTrigger
                         render={

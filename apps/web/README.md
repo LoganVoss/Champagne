@@ -1,6 +1,6 @@
 # Champagne Web
 
-Champagne Web is a local-first, WebMCP-enabled mastering studio. A person or an agent can direct the same live mastering session, hear every result, choose a signature baseline, adjust trim, fades, and speed, and prepare a 24-bit / 48 kHz WAV for an explicit user download.
+Champagne Web is a local-first, WebMCP-enabled mastering studio. A person or an agent can direct the same live mastering session, hear every result, adjust trim, fades, and speed, and prepare a 24-bit / 48 kHz WAV for an explicit user download.
 
 ## Run locally
 
@@ -36,7 +36,7 @@ The top-level studio page imperatively registers ten page-bound tools through `d
 - `commit_master`
 - `download_master`
 
-Every tool calls the same command functions used by the manual style controls and on-page Mastering Magic. Mutations validate a current `expectedStateVersion`, update the visible studio, and return only after the UI has had time to commit. Mixed prompts are executed in order—mastering, trim/fades, speed, then download—while edit-only prompts preserve the current master. Speed is bounded to 50–150%; switching it off restores 100%.
+Every tool calls the same command functions used by the live studio and on-page Mastering Magic. Mutations validate a current `expectedStateVersion`, update the visible studio, and return only after the UI has had time to commit. Mixed prompts are executed in order—mastering, trim/fades, then speed—while edit-only prompts preserve the current master. Speed is bounded to 50–150%, with 100% at the slider center.
 
 `commit_master` stages a style. `download_master` prepares the current export only when the user explicitly requests one; browser security leaves the final save action on the visible **Download WAV** button.
 
@@ -80,4 +80,4 @@ For WebMCP verification, use ChatGPT’s current built-in browser or WebMCP-enab
 - Choose and add a recognized open-source license before making the submission repository public.
 - Keep the deployed app free and available through the judging period.
 - Record a public demo under three minutes using music you own or are authorized to show.
-- Show the ChatGPT conversation calling site tools, the active custom style and compact signature controls, real-time original/master and speed changes, targeted edits that preserve the master, and the final **Download WAV** click.
+- Show the ChatGPT conversation calling site tools, the active custom style, real-time original/master and speed changes, targeted edits that preserve the master, and the final **Download WAV** click.
