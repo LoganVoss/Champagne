@@ -122,8 +122,8 @@ const HUMAN_ONLY_FILE_SAVE = {
   assistantMustNotAttempt: true,
 } as const;
 
-const HUMAN_SAVE_GUIDANCE =
-  ' Download is not a site tool. Never click, prepare, export, save, or claim a download. Once all explicitly requested mastering and edit actions are complete, stop; the person saves with the visible Download WAV button.';
+const PAGE_AUDIO_GUIDANCE =
+  ' Operates on the audio already loaded in the current Champagne browser page, so no chat attachment is required.';
 
 async function completeAgentOperation(
   operation: string,
@@ -165,13 +165,7 @@ async function completeAgentOperation(
 }
 
 async function describeAgentState(result: unknown): Promise<unknown> {
-  const resolved = await result;
-  if (!resolved || typeof resolved !== 'object') return resolved;
-  return {
-    ...(resolved as Record<string, unknown>),
-    recommendedToolCalls: [],
-    fileSave: HUMAN_ONLY_FILE_SAVE,
-  };
+  return result;
 }
 
 export async function registerChampagneTools(
@@ -200,10 +194,9 @@ export async function registerChampagneTools(
   const tools: ModelContextTool[] = [
     {
       name: 'get_studio_state',
-      title: 'Read Champagne studio state',
+      title: 'Check the audio loaded in Champagne',
       description:
-        'Read the current local track status, rendered styles, active style, version, and available capabilities. Capabilities describe what is possible; they are not recommended next actions. Does not expose audio, waveform samples, or the local filename.' +
-        HUMAN_SAVE_GUIDANCE,
+        'Call this first whenever the user asks Champagne to master, analyze, trim, fade, or change track speed. It checks the live audio already loaded in the current Champagne browser page, including a built-in demo or audio selected in the page, so the user does not need to attach that audio to ChatGPT. If the page is empty, direct the user to Select Audio or Try Demo in Champagne instead of asking for a chat attachment. Returns stateVersion for subsequent actions without exposing audio bytes, waveform samples, filenames, or local paths.',
       inputSchema: {
         type: 'object',
         properties: {},
@@ -220,8 +213,7 @@ export async function registerChampagneTools(
       name: 'analyze_track',
       title: 'Analyze the loaded track',
       description:
-        'Measure the loaded track locally and return compact objective level, peak, crest-factor, duration, and headroom findings. No audio leaves the page.' +
-        HUMAN_SAVE_GUIDANCE,
+        'Measure the track already loaded in Champagne locally and return compact objective level, peak, crest-factor, duration, and headroom findings. No audio leaves the page and no chat attachment is required.',
       inputSchema: {
         type: 'object',
         properties: {},
@@ -240,7 +232,7 @@ export async function registerChampagneTools(
       title: 'Create a custom mastering style',
       description:
         'Use only when the user requests mastering or sonic changes. Create and locally render one reversible custom Champagne style from a safe baseline plus small, bounded musical adjustments. If the same request also includes cuts, fades, or speed, call those tools afterward in that order and pass each newly returned stateVersion into the next action.' +
-        HUMAN_SAVE_GUIDANCE,
+        PAGE_AUDIO_GUIDANCE,
       inputSchema: {
         type: 'object',
         properties: {
@@ -368,7 +360,7 @@ export async function registerChampagneTools(
       title: 'Refine a custom style',
       description:
         'Create a reversible child style with one bounded semantic change. The source remains intact and the new result becomes the active audible master.' +
-        HUMAN_SAVE_GUIDANCE,
+        PAGE_AUDIO_GUIDANCE,
       inputSchema: {
         type: 'object',
         properties: {
@@ -443,7 +435,7 @@ export async function registerChampagneTools(
       title: 'Create three mastering directions',
       description:
         'Create up to three sibling mastering styles in one transaction and select the first result. Use this for contrasting warm, open, and club-loud directions.' +
-        HUMAN_SAVE_GUIDANCE,
+        PAGE_AUDIO_GUIDANCE,
       inputSchema: {
         type: 'object',
         properties: {
@@ -502,7 +494,7 @@ export async function registerChampagneTools(
       title: 'Stage a mastering comparison',
       description:
         'Group two or three rendered custom styles for comparison and select the first. This does not alter any rendered audio.' +
-        HUMAN_SAVE_GUIDANCE,
+        PAGE_AUDIO_GUIDANCE,
       inputSchema: {
         type: 'object',
         properties: {
@@ -543,7 +535,7 @@ export async function registerChampagneTools(
       title: 'Set trim and fades',
       description:
         'Use for every cut, trim, fade-in, or fade-out instruction, including when it appears inside a mastering request. Update the non-destructive keep region and fade lengths while preserving the selected master. Values are validated against the loaded track duration; after a prior action, use that action’s returned stateVersion.' +
-        HUMAN_SAVE_GUIDANCE,
+        PAGE_AUDIO_GUIDANCE,
       inputSchema: {
         type: 'object',
         properties: {
@@ -604,7 +596,7 @@ export async function registerChampagneTools(
       title: 'Select an existing mastering style',
       description:
         'Call only when the user explicitly asks to switch to, select, or finalize a previously rendered style. Make that style active and audible without rendering, preparing, exporting, or downloading. Do not call this automatically after creating or refining a master. On success, stop.' +
-        HUMAN_SAVE_GUIDANCE,
+        PAGE_AUDIO_GUIDANCE,
       inputSchema: {
         type: 'object',
         properties: {
@@ -642,7 +634,7 @@ export async function registerChampagneTools(
       title: 'Set track speed',
       description:
         'Use for every speed instruction, including when it appears inside a mastering request. Set the current track speed from 50% to 150%; the change is heard immediately and updates the visible percentage and slider. 100% restores normal speed. After a prior action, use that action’s returned stateVersion.' +
-        HUMAN_SAVE_GUIDANCE,
+        PAGE_AUDIO_GUIDANCE,
       inputSchema: {
         type: 'object',
         properties: {

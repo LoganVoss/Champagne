@@ -1631,17 +1631,36 @@ export function ChampagneStudio() {
         stateVersion: stateVersionRef.current,
         status: 'empty',
         styleCount: 0,
+        audioContext: {
+          source: 'champagne_browser_page',
+          loaded: false,
+          readyForSiteTools: false,
+          chatAttachmentRequired: false,
+          instruction:
+            'Ask the user to choose Select Audio or Try Demo inside Champagne. Do not ask them to attach audio to the chat.',
+        },
         capabilities: {
           available: ['load_track_in_ui'],
           explicitUserRequestOnly: [],
         },
-        privacy: { audioShared: false },
+        privacy: {
+          audioBytesSentToChatGPT: false,
+          filenameSentToChatGPT: false,
+        },
       };
     }
     return {
       ok: true,
       stateVersion: stateVersionRef.current,
       status: snapshot.phase,
+      audioContext: {
+        source: 'champagne_browser_page',
+        loaded: true,
+        readyForSiteTools: true,
+        chatAttachmentRequired: false,
+        instruction:
+          'Use this live Champagne track through site tools. Do not request a chat attachment.',
+      },
       track: {
         durationSeconds: round(snapshot.track.analysis.durationSeconds, 2),
         sampleRate: snapshot.track.analysis.sampleRate,
@@ -1678,7 +1697,10 @@ export function ChampagneStudio() {
           ? ['commit_master']
           : [],
       },
-      privacy: { audioShared: false, filenameShared: false },
+      privacy: {
+        audioBytesSentToChatGPT: false,
+        filenameSentToChatGPT: false,
+      },
     };
   }, []);
 
@@ -1702,6 +1724,14 @@ export function ChampagneStudio() {
       return {
         ok: true,
         stateVersion: stateVersionRef.current,
+        audioContext: {
+          source: 'champagne_browser_page',
+          loaded: true,
+          readyForSiteTools: true,
+          chatAttachmentRequired: false,
+          instruction:
+            'Use this live Champagne track through site tools. Do not request a chat attachment.',
+        },
         analysis: {
           durationSeconds: round(analysis.durationSeconds, 2),
           samplePeakDbfs: round(analysis.samplePeakDbfs, 2),
@@ -1710,7 +1740,10 @@ export function ChampagneStudio() {
           headroomDb: round(analysis.headroomDb, 2),
         },
         flags: analysis.flags,
-        audioShared: false,
+        privacy: {
+          audioBytesSentToChatGPT: false,
+          filenameSentToChatGPT: false,
+        },
         capabilities: {
           available: [
             'create_mastering_take',
