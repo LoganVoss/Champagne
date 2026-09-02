@@ -328,9 +328,14 @@ export function ChampagneStudio() {
     const suggestion = PROMPT_SUGGESTIONS[suggestionIndex];
 
     try {
-      if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(suggestion);
-      } else {
+      const copiedWithClipboard = navigator.clipboard?.writeText
+        ? await navigator.clipboard.writeText(suggestion).then(
+            () => true,
+            () => false,
+          )
+        : false;
+
+      if (!copiedWithClipboard) {
         const focusedElement = document.activeElement as HTMLElement | null;
         const textarea = document.createElement('textarea');
         textarea.value = suggestion;

@@ -540,10 +540,32 @@ export async function registerChampagneTools(
         type: 'object',
         properties: {
           expectedStateVersion: stateVersion,
-          startSeconds: { type: 'number', minimum: 0 },
-          endSeconds: { type: 'number', exclusiveMinimum: 0 },
-          fadeInSeconds: { type: 'number', minimum: 0, maximum: 30 },
-          fadeOutSeconds: { type: 'number', minimum: 0, maximum: 30 },
+          startSeconds: {
+            type: 'number',
+            minimum: 0,
+            description:
+              'Absolute start of the kept audio in seconds. To cut N seconds from the front, set this to N.',
+          },
+          endSeconds: {
+            type: 'number',
+            exclusiveMinimum: 0,
+            description:
+              'Absolute end of the kept audio in seconds. To cut N seconds from the back, set this to durationSeconds minus N.',
+          },
+          fadeInSeconds: {
+            type: 'number',
+            minimum: 0,
+            maximum: 30,
+            description:
+              'Fade length in seconds immediately after startSeconds; use 0 for no fade-in.',
+          },
+          fadeOutSeconds: {
+            type: 'number',
+            minimum: 0,
+            maximum: 30,
+            description:
+              'Fade length in seconds immediately before endSeconds; use 0 for no fade-out.',
+          },
           fadeInCurve: {
             type: 'number',
             minimum: -1,
