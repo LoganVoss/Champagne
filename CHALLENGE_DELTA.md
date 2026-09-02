@@ -18,11 +18,11 @@ architecture notes, and verification checklist live in
 
 - Browser studio in `apps/web`
 - Local Web Audio decode, analysis, audible mastering previews, playback, and WAV export
-- ChatGPT prompt-suggestion surface plus a manual fallback brief
-- Twenty-five named mastering directions compiled across twelve bounded controls
+- ChatGPT prompt-suggestion surface plus four manual signature controls
+- Twelve bounded mastering controls exposed through typed WebMCP schemas
 - Reversible prompt-created custom mastering styles
 - Reversible style revisions and real-time original/master switching
-- Shared command functions for manual controls, the fallback brief, and WebMCP
+- Shared command functions for manual controls and WebMCP
 - Nine imperative top-level WebMCP tools
 - State-version conflict checks and visible WebMCP activity status
 - ChatGPT session pause control

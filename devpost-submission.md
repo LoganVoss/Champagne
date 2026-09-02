@@ -25,11 +25,13 @@ the right take.
 
 Champagne turns a mastering session into a shared, audible conversation. A
 person loads a local track or clicks **Demo** to switch among five bundled
-showcases. They write a brief in **Mastering Magic**. The browser extracts all
-useful cues, maps them to bounded musical dimensions, creates a named custom
-style, and renders an audible take locally. The person can switch Original and
-Mastered, compare reversible User Presets, adjust trim, curved fades, and
-speed, and download when the result is ready.
+DeltaX tracks. In a WebMCP-enabled browser, the page offers readable prompt
+ideas that can be copied directly into ChatGPT. ChatGPT turns that musical
+direction into typed site-tool calls, and Champagne renders the resulting
+master locally. The person can switch between Original and Mastered, adjust
+trim, curved fades, and speed, and download when the result is ready. In a
+regular browser, the interface stays intentionally simple: four proven
+signature styles plus the same direct audio controls.
 
 ChatGPT can operate the same session through WebMCP: read compact state,
 analyze the track, create a take, refine one dimension, create variations,
@@ -46,7 +48,7 @@ to an audio app; the agent and the person direct one instrument. A typed
 `create_mastering_take` call carries musical priorities, constraints, a
 bounded adjustment set, and the studio's current state version. The page
 returns a receipt and an audible result. The person can listen immediately,
-correct the brief, or ask for a new variation.
+refine their direction through ChatGPT, or ask for a new variation.
 
 This is safer and more expressive than asking an agent to guess at coordinates,
 and more useful than limiting natural language to four preset buttons. The
@@ -63,7 +65,7 @@ audible state. In this build:
 1. ChatGPT reads the current track status and compact measurements.
 2. The person states a musical goal in natural language.
 3. ChatGPT can create a named take with several priorities and constraints;
-   Champagne renders it locally and puts it in User Presets.
+   Champagne renders it locally and makes it the active Mastered take.
 4. The person listens to the result, switches Original/Mastered, and gives
    feedback grounded in what they actually hear.
 5. ChatGPT can refine one dimension, create contrasting siblings, or stage a
@@ -92,22 +94,23 @@ imperatively registers nine tools:
 
 Each tool has an explicit JSON input schema, safe bounds, read/write
 annotations, and an abort signal. `apps/web/components/champagne-studio.tsx`
-exposes a typed command API. The manual style controls, Mastering Magic, and
-WebMCP all call that API. Mutations validate `expectedStateVersion`, update the
-visible studio, and return after the state commit. `get_studio_state` and tool
-receipts are intentionally redacted.
+exposes a typed command API. The four manual signature controls and nine
+WebMCP tools call that same API. Mutations validate `expectedStateVersion`,
+update the visible studio, and return after the state commit.
+`get_studio_state` and tool results are intentionally redacted.
 
-The local intent compiler in `apps/web/lib/studio.ts` recognizes 25 named
-directions and combines 12 bounded controls: intensity, warmth, brightness,
-punch, dynamics, low end, presence, air, width, glue, density, and smoothness.
-Unfamiliar or metaphorical wording receives a conservative adaptive finish
-instead of an error. No remote LLM or audio upload is required for rendering.
+ChatGPT maps natural language into four proven baselines and 12 bounded
+controls: intensity, warmth, brightness, punch, dynamics, low end, presence,
+air, width, glue, density, and smoothness. Champagne performs the audio
+rendering deterministically inside the browser; audio is not uploaded to a
+remote rendering service.
 
 ## How AI was used
 
-ChatGPT is the in-product agent client: it interprets a person's brief and
-calls the page-bound WebMCP tools. The local compiler remains deterministic and
-bounded so the page does not need to send audio or secrets to a model.
+ChatGPT is the connected agent client beside the page: it interprets a
+person's direction and calls the page-bound WebMCP tools. The audio engine
+remains deterministic and bounded, and WebMCP payloads never include audio
+bytes, waveform samples, filenames, or local paths.
 
 ## How Codex was used
 
@@ -120,16 +123,14 @@ reference implementation.
 
 ## Key features
 
-- Natural-language **Mastering Magic** with 25 directions and multi-cue prompt
-  interpretation.
-- Device-local, audible browser rendering with reversible custom styles.
-- User Presets with more than one page of local takes and simple arrow
-  navigation.
+- ChatGPT-directed mastering through nine page-bound WebMCP tools.
+- Device-local, audible browser rendering with reversible mastering takes.
+- Four proven signature styles for the manual, non-WebMCP experience.
 - Original/Mastered A/B listening, real-time playback, trim handles, and
-  curved fade-in/fade-out handles, plus 0–200% speed control.
-- Nine semantic WebMCP tools with state-version conflict checks and visible
-  action receipts.
-- Five bundled demo tracks, so reviewers do not need a local file.
+  curved fade-in/fade-out handles, plus 50–150% speed control.
+- State-version conflict checks, visible studio updates, and structured tool
+  completion summaries.
+- Five bundled DeltaX demo tracks, so reviewers do not need a local file.
 - Explicit final download button; source audio is never overwritten and
   edit-only prompts never trigger a remaster.
 
@@ -139,7 +140,7 @@ reference implementation.
 - `apps/web/app/` — browser route, layout, and styling.
 - `apps/web/components/champagne-studio.tsx` — session state, controls, and
   command API.
-- `apps/web/lib/studio.ts` — prompt compiler, style model, state semantics.
+- `apps/web/lib/studio.ts` — style model and state semantics.
 - `apps/web/lib/audio-engine.ts` — browser decode/analyze/render/export.
 - `apps/web/lib/webmcp.ts` — page-bound WebMCP registration and schemas.
 - `apps/web/public/` — five bundled showcase recordings and web artwork.
@@ -148,11 +149,13 @@ reference implementation.
 
 1. Open the [live Champagne demo](https://champagne.vossx.chatgpt.site/)
    in ChatGPT's in-app browser, or in Chrome 149+ with WebMCP enabled.
-2. Click **Demo**, wait for Motorcycle to load, and try the demo-track arrows.
-3. Play Original, enter a brief such as “warm low-end weight and punchy drums,
-   keep the top smooth,” and wait for the gold loading bar to complete.
-4. Play Mastered, switch between takes, and inspect the new named style in User
-   Presets. Try a second prompt or ask ChatGPT to refine/create variations.
+2. Click **Demo**, wait for Motorcycle by DeltaX to load, and press Play when
+   the Step 1 guide appears.
+3. Copy the suggested prompt when Step 2 appears, paste it into ChatGPT, and
+   verify ChatGPT finds the page-loaded audio without requesting a chat
+   attachment.
+4. Wait for **Loading...** to finish, then play Original and Mastered to hear
+   the result.
 5. Prompt “keep this master, cut two seconds from each end, fade the first and
    last second, and set speed to 75%.” Confirm no new master is rendered, then
    click **Download WAV**.
@@ -178,35 +181,35 @@ https://github.com/LoganVoss/Champagne
 
 ## Demo video
 
-To be recorded tomorrow and uploaded publicly to YouTube. The planned cut is
-under three minutes and is scripted in
-[`docs/demo-video-script.md`](docs/demo-video-script.md).
+Public YouTube URL: **Add before submission.**
+
+The final video must be public, under three minutes, and include clear audio
+demonstrating Champagne and its WebMCP workflow.
 
 ## Screenshot plan
 
 Capture these frames for the final submission:
 
 1. Home screen with the **Demo** entry point.
-2. Mastering Magic prompt in progress with the custom style appearing in User
-   Presets.
-3. Original/Mastered waveform and audible A/B state.
-4. ChatGPT site-tools drawer showing the semantic tool connection.
-5. Trim/fade handles, speed slider, and the final **Download WAV** click.
+2. Connected ChatGPT status and the **Ask ChatGPT** suggestion surface.
+3. Original/Mastered waveform and audible A/B state after a WebMCP master.
+4. Visible trim/fade handles and the 50–150% speed slider after an edit prompt.
+5. ChatGPT site-tools drawer plus the human-controlled **Download WAV** button.
 
 ## Readiness and known limitations
 
 The native project predates the challenge. The web studio and WebMCP additions
 are dated after August 25, 2026 and are recorded in
 [`docs/challenge-evidence.md`](docs/challenge-evidence.md). The repository is
-being published publicly with MIT license metadata. The remaining readiness
-items are the final Devpost form values, public video, screenshots, and a last
-logged-out repo check.
+public with detected MIT license metadata. The remaining readiness items are
+the final Devpost form values, public video URL, screenshots, and a last
+logged-out end-to-end test of the public site.
 
 The browser engine is intentionally a real, audible contest slice rather than
 a claim of sample-for-sample parity with every native Accelerate operation.
-Browser codec support varies. Preset metadata is device-local. WebMCP support
-depends on the browser/client. There is no cloud collaboration or server-side
-audio storage in this build.
+Browser codec support varies. WebMCP support depends on the browser/client.
+Session and take metadata is device-local. There is no cloud collaboration or
+server-side audio storage in this build.
 
 ## TODO — official form fields
 
@@ -222,8 +225,8 @@ them:
 - **Live URL (28254):** `https://champagne.vossx.chatgpt.site/`.
 - **Testing instructions (28255):** use the numbered flow above.
 - **URL to PUBLIC Code Repo (28256):** `https://github.com/LoganVoss/Champagne`.
-- **Agent(s) or client(s) tested (28257):** ChatGPT in-app browser; WebMCP-
-  enabled Chrome 149+.
+- **Agent(s) or client(s) tested (28257):** ChatGPT in-app browser. Add
+  WebMCP-enabled Chrome 149+ only after testing it separately.
 - **AI tools leveraged (28258):** ChatGPT; Codex.
 - **Level of learning (28259):** choose the accurate value.
 - **Career AI value (28260):** choose the accurate value.

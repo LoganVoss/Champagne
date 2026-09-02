@@ -25,14 +25,7 @@ import {
   WandSparkles,
   X,
 } from 'lucide-react';
-import {
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 
 import { WaveformEditor } from '@/components/waveform-editor';
@@ -55,7 +48,6 @@ import {
 } from '@/components/ui/sheet';
 import { Switch } from '@/components/ui/switch';
 import { Slider } from '@/components/ui/slider';
-import { Textarea } from '@/components/ui/textarea';
 import {
   analyzeAudioBuffer,
   decodeAudioFile,
@@ -68,8 +60,6 @@ import {
   clamp,
   DEFAULT_MODIFIERS,
   formatTime,
-  interpretBrief,
-  interpretStudioPrompt,
   makeId,
   makePlanHash,
   sanitizePresetName,
@@ -248,7 +238,6 @@ export function ChampagneStudio() {
   const [speedPercent, setSpeedPercent] = useState(100);
   const [speedEnabled, setSpeedEnabled] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [brief, setBrief] = useState('');
   const [, setIntentDisplay] = useState<InterpretedBrief | null>(null);
   const [, setActivity] = useState<ActivityReceipt[]>([]);
   const [comparisonIds, setComparisonIds] = useState<string[]>([]);
@@ -270,8 +259,6 @@ export function ChampagneStudio() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const downloadAnchorRef = useRef<HTMLAnchorElement>(null);
   const preparedDownloadRef = useRef<PreparedDownload | null>(null);
-  const composerFieldRef = useRef<HTMLDivElement>(null);
-  const composerSuggestionTextRef = useRef<HTMLSpanElement>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const playbackRef = useRef<PlaybackRuntime | null>(null);
   const renderBusyRef = useRef(false);
@@ -608,7 +595,7 @@ export function ChampagneStudio() {
 
   useEffect(() => {
     if (
-      brief.trim() ||
+      !webmcpAvailable ||
       window.matchMedia('(prefers-reduced-motion: reduce)').matches
     )
       return;
@@ -619,26 +606,7 @@ export function ChampagneStudio() {
       );
     }, 7600);
     return () => window.clearInterval(timer);
-  }, [brief]);
-
-  useLayoutEffect(() => {
-    const field = composerFieldRef.current;
-    const suggestion = composerSuggestionTextRef.current;
-    if (!field || !suggestion || brief) return;
-
-    const alignEmptyCaret = () => {
-      const fieldRect = field.getBoundingClientRect();
-      const suggestionRect = suggestion.getBoundingClientRect();
-      const start = Math.max(22, suggestionRect.left - fieldRect.left - 2);
-      field.style.setProperty('--empty-caret-left', `${start}px`);
-    };
-
-    alignEmptyCaret();
-    const observer = new ResizeObserver(alignEmptyCaret);
-    observer.observe(field);
-    observer.observe(suggestion);
-    return () => observer.disconnect();
-  }, [brief, suggestionIndex, track, webmcpAvailable]);
+  }, [webmcpAvailable]);
 
   const markWebMCP = useCallback(
     (action: string) => {
@@ -1900,159 +1868,6 @@ export function ChampagneStudio() {
     });
   }, [addReceipt, bumpStateVersion]);
 
-  const submitBrief = useCallback(async () => {
-    const value = brief.trim();
-    if (!track || !value || renderBusyRef.current) return;
-    const actions = interpretStudioPrompt(value);
-    setNotice(null);
-    let masteringResult: unknown = { ok: true };
-    if (actions.shouldMaster) {
-      const interpreted = interpretBrief(
-        actions.masteringText || value,
-        Boolean(runtimeRef.current.activeRevisionId),
-      );
-      setIntentDisplay(interpreted);
-      addReceipt({
-        creator: 'brief',
-        title: 'Direction understood',
-        detail:
-          interpreted.mode === 'variations'
-            ? 'Three contrasting directions'
-            : `${interpreted.customName} · ${STYLE_RECIPES[interpreted.style].name} baseline`,
-      });
-      const expectedStateVersion = stateVersionRef.current;
-      if (interpreted.mode === 'variations') {
-        masteringResult = await createVariationsCommand({
-          expectedStateVersion,
-          styles: interpreted.styles ?? [
-            'warm_presence',
-            'modern_crisp',
-            'dominant',
-          ],
-          constraint: interpreted.constraints.includes('preserve transients')
-            ? 'preserve_transients'
-            : interpreted.constraints.includes('keep dynamic')
-              ? 'keep_dynamic'
-              : interpreted.constraints.includes('avoid harshness')
-                ? 'avoid_harshness'
-                : 'none',
-          creator: 'brief',
-          prompt: value,
-        });
-      } else if (
-        interpreted.mode === 'refine' &&
-        interpreted.refinement &&
-        runtimeRef.current.activeRevisionId
-      ) {
-        const source = runtimeRef.current.revisions.find(
-          (revision) => revision.id === runtimeRef.current.activeRevisionId,
-        );
-        if (source) {
-          const mergedModifiers = { ...source.intent.modifiers };
-          for (const key of Object.keys(mergedModifiers) as Array<
-            keyof MasteringModifiers
-          >) {
-            mergedModifiers[key] = clamp(
-              mergedModifiers[key] + interpreted.modifiers[key],
-              -1,
-              1,
-            );
-          }
-          masteringResult = await createTakeCommand({
-            expectedStateVersion,
-            baseStyle: source.style,
-            priorities: [
-              ...new Set([
-                ...source.intent.priorities,
-                ...interpreted.priorities,
-              ]),
-            ],
-            constraints: [
-              ...new Set([
-                ...source.intent.constraints,
-                ...interpreted.constraints,
-              ]),
-            ],
-            modifiers: mergedModifiers,
-            customName: `${source.displayName} · ${interpreted.refinement.label}`,
-            matchedDirections: [
-              ...new Set([
-                ...source.intent.matchedDirections,
-                ...interpreted.matchedDirections,
-              ]),
-            ],
-            parentId: source.id,
-            creator: 'brief',
-            prompt: value,
-          });
-        }
-      } else {
-        masteringResult = await createTakeCommand({
-          expectedStateVersion,
-          baseStyle: interpreted.style,
-          priorities: interpreted.priorities,
-          constraints: interpreted.constraints,
-          modifiers: interpreted.modifiers,
-          customName: interpreted.customName,
-          matchedDirections: interpreted.matchedDirections,
-          creator: 'brief',
-          prompt: value,
-        });
-      }
-    }
-
-    if (
-      typeof masteringResult === 'object' &&
-      masteringResult !== null &&
-      'ok' in masteringResult &&
-      masteringResult.ok === false
-    ) {
-      setBrief('');
-      return;
-    }
-
-    const hasEdits = Object.values(actions.edits).some((edit) => edit != null);
-    if (hasEdits && runtimeRef.current.track) {
-      const currentTrim = runtimeRef.current.trim;
-      const duration = runtimeRef.current.track.buffer.duration;
-      await setTrimFadesCommand({
-        expectedStateVersion: stateVersionRef.current,
-        startSeconds: actions.edits.cutStartSeconds ?? currentTrim.startSeconds,
-        endSeconds:
-          actions.edits.cutEndSeconds != null
-            ? duration - actions.edits.cutEndSeconds
-            : currentTrim.endSeconds,
-        fadeInSeconds: actions.edits.fadeInSeconds ?? currentTrim.fadeInSeconds,
-        fadeOutSeconds:
-          actions.edits.fadeOutSeconds ?? currentTrim.fadeOutSeconds,
-        fadeInCurve: currentTrim.fadeInCurve,
-        fadeOutCurve: currentTrim.fadeOutCurve,
-        creator: 'brief',
-      });
-    }
-    if (actions.speedPercent != null) {
-      await setTrackSpeedCommand({
-        expectedStateVersion: stateVersionRef.current,
-        speedPercent: actions.speedPercent,
-        creator: 'brief',
-      });
-    }
-    if (actions.shouldDownload) {
-      setNotice(
-        'Click Download WAV in the page header to save the current track.',
-      );
-    }
-    setBrief('');
-  }, [
-    addReceipt,
-    brief,
-    createTakeCommand,
-    createVariationsCommand,
-    setTrackSpeedCommand,
-    setTrimFadesCommand,
-    track,
-  ]);
-
   const handleStyle = useCallback(
     (style: StyleId) => {
       const existing = [...runtimeRef.current.revisions]
@@ -2102,7 +1917,6 @@ export function ChampagneStudio() {
       committedSpeedRef.current = 100;
       runtimeRef.current.speedPercent = 100;
       runtimeRef.current.speedEnabled = false;
-      setBrief('');
       setDemoGuideStep(null);
       setIntentDisplay(null);
       setNotice(null);
@@ -2179,7 +1993,7 @@ export function ChampagneStudio() {
     : agentPaused
       ? 'ChatGPT paused'
       : webmcpInvoked
-        ? 'ChatGPT directing'
+        ? 'ChatGPT'
         : 'Site tools ready';
 
   return (
@@ -2541,74 +2355,65 @@ export function ChampagneStudio() {
                 </div>
               </div>
 
-              <div
-                className={`surface brief-surface ${webmcpAvailable ? 'is-chatgpt' : ''}`}
-              >
-                <div
-                  className={`brief-header ${webmcpAvailable ? 'is-chatgpt' : ''}`}
-                >
-                  <div className="flex items-center gap-2.5">
-                    <span className="brief-icon">
-                      <WandSparkles />
-                    </span>
-                    {!webmcpAvailable && (
-                      <span>
-                        <strong>Mastering Magic</strong>
+              {webmcpAvailable && (
+                <div className="surface brief-surface is-chatgpt">
+                  <div className="brief-header is-chatgpt">
+                    <div className="flex items-center gap-2.5">
+                      <span className="brief-icon">
+                        <WandSparkles />
                       </span>
-                    )}
+                    </div>
+                    <div className="brief-header-tools">
+                      {isStudioBusy && (
+                        <output
+                          className="studio-busy-indicator"
+                          aria-live="polite"
+                        >
+                          <i aria-hidden="true" />
+                          Loading...
+                        </output>
+                      )}
+                      <Dialog>
+                        <DialogTrigger
+                          render={
+                            <button
+                              className="mastering-info-button"
+                              type="button"
+                              aria-label="How Champagne Works with WebMCP"
+                            />
+                          }
+                        >
+                          <Info />
+                        </DialogTrigger>
+                        <DialogContent className="mastering-info-dialog sm:max-w-[560px]">
+                          <DialogHeader>
+                            <DialogTitle>
+                              How Champagne Works with WebMCP
+                            </DialogTitle>
+                            <DialogDescription>
+                              Four proven mastering styles give every request a
+                              safe baseline.
+                            </DialogDescription>
+                          </DialogHeader>
+                          <div className="mastering-info-copy">
+                            <p>
+                              ChatGPT reads your direction, chooses the closest
+                              signature, then applies bounded refinements across
+                              tone, punch, dynamics, width, density, and
+                              smoothness.
+                            </p>
+                            <p className="mastering-info-close">
+                              <strong>
+                                Every song needs a slightly different touch.
+                              </strong>{' '}
+                              That&apos;s where ChatGPT makes the difference.
+                            </p>
+                          </div>
+                        </DialogContent>
+                      </Dialog>
+                    </div>
                   </div>
-                  <div className="brief-header-tools">
-                    {isStudioBusy && (
-                      <output
-                        className="studio-busy-indicator"
-                        aria-live="polite"
-                      >
-                        <i aria-hidden="true" />
-                        Loading...
-                      </output>
-                    )}
-                    <Dialog>
-                      <DialogTrigger
-                        render={
-                          <button
-                            className="mastering-info-button"
-                            type="button"
-                            aria-label="How Champagne Works with WebMCP"
-                          />
-                        }
-                      >
-                        <Info />
-                      </DialogTrigger>
-                      <DialogContent className="mastering-info-dialog sm:max-w-[560px]">
-                        <DialogHeader>
-                          <DialogTitle>
-                            How Champagne Works with WebMCP
-                          </DialogTitle>
-                          <DialogDescription>
-                            Four proven mastering styles give every request a
-                            safe baseline.
-                          </DialogDescription>
-                        </DialogHeader>
-                        <div className="mastering-info-copy">
-                          <p>
-                            ChatGPT reads your direction, chooses the closest
-                            signature, then applies bounded refinements across
-                            tone, punch, dynamics, width, density, and
-                            smoothness.
-                          </p>
-                          <p className="mastering-info-close">
-                            <strong>
-                              Every song needs a slightly different touch.
-                            </strong>{' '}
-                            That&apos;s where ChatGPT makes the difference.
-                          </p>
-                        </div>
-                      </DialogContent>
-                    </Dialog>
-                  </div>
-                </div>
 
-                {webmcpAvailable ? (
                   <div
                     className="chatgpt-prompt-ideas"
                     aria-label="Prompt ideas for ChatGPT"
@@ -2649,47 +2454,8 @@ export function ChampagneStudio() {
                       </div>
                     </div>
                   </div>
-                ) : (
-                  <div className="composer">
-                    <div className="composer-field" ref={composerFieldRef}>
-                      {!brief && (
-                        <div
-                          className="composer-suggestion"
-                          key={suggestionIndex}
-                          aria-hidden="true"
-                        >
-                          <span ref={composerSuggestionTextRef}>
-                            {PROMPT_SUGGESTIONS[suggestionIndex]}
-                          </span>
-                        </div>
-                      )}
-                      <Textarea
-                        data-empty={!brief}
-                        value={brief}
-                        onChange={(event) => setBrief(event.target.value)}
-                        onKeyDown={(event) => {
-                          if (event.key === 'Enter' && !event.shiftKey) {
-                            event.preventDefault();
-                            void submitBrief();
-                          }
-                        }}
-                        className="min-h-[76px] resize-none border-0 bg-transparent px-10 py-5 text-center font-sans text-[18px] leading-7 shadow-none focus-visible:ring-0"
-                        placeholder=""
-                        aria-label="Mastering Magic"
-                      />
-                    </div>
-                    <Button
-                      className="send-button"
-                      size="icon"
-                      aria-label="Create local preview"
-                      disabled={!brief.trim() || isStudioBusy}
-                      onClick={() => void submitBrief()}
-                    >
-                      <ArrowUp />
-                    </Button>
-                  </div>
-                )}
-              </div>
+                </div>
+              )}
 
               {notice && (
                 <div className="notice-banner">

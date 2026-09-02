@@ -38,13 +38,11 @@ hidden behind a marketing claim.
 ## 3. Turn musical language into bounded controls
 
 In a WebMCP-enabled browser, the studio presents copyable ideas while the artist
-prompts ChatGPT directly. When WebMCP is unavailable, the manual fallback keeps
-the four signature buttons and the **Mastering Magic** brief. Both paths use the
-same bounded engine. `apps/web/lib/studio.ts` contains 25 named mastering
-directions and 12 bounded dimensions (intensity, warmth, brightness, punch,
-dynamics, low end, presence, air, width, glue, density, and smoothness). A
-manual brief can contribute several cues at once; unfamiliar language receives
-a conservative adaptive finish instead of an error.
+prompts ChatGPT directly. ChatGPT maps that language into four safe style
+baselines and 12 bounded dimensions (intensity, warmth, brightness, punch,
+dynamics, low end, presence, air, width, glue, density, and smoothness). When
+WebMCP is unavailable, manual mode stays intentionally direct: four signature
+buttons plus the visible playback, trim, fade, speed, and download controls.
 
 Each render is reversible and receives a user-facing name. The source PCM is
 never included in the revision metadata or exposed to WebMCP.
@@ -53,10 +51,9 @@ never included in the revision metadata or exposed to WebMCP.
 
 The React studio owns one command API for reading state, analyzing the track,
 creating/refining/contrasting takes, staging comparisons, changing trim/fades
-and speed, and committing a take. Visible controls and the manual fallback
-brief call the same functions that WebMCP calls. That keeps a click, a brief,
-and an agent action audibly consistent. The person completes the final save
-with the visible **Download WAV** button.
+and speed, and committing a take. Visible controls and WebMCP call the same
+functions, keeping human and agent actions audibly consistent. The person
+completes the final save with the visible **Download WAV** button.
 
 Mutating commands accept the last `expectedStateVersion`. The studio increments
 the version after a successful mutation and returns a clear conflict when a

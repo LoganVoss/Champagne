@@ -26,10 +26,10 @@ The rules explicitly allow an existing project when it is meaningfully extended
 with WebMCP after August 25, 2026 and the new work is documented. Champagne's
 pre-existing baseline is the native macOS SwiftUI app: local AVFoundation/
 Accelerate mastering, four signatures, playback/A-B, trim/fades, and WAV
-export. The browser studio, local Web Audio renderer, Mastering Magic command
-surface, User Presets, shared command bus, WebMCP tools, visible receipts,
-redacted state, bundled showcase tracks, real-time speed, targeted edit routing,
-and the explicit human-controlled **Download WAV** action are challenge-period
+export. The browser studio, local Web Audio renderer, ChatGPT prompt
+suggestions, four-style manual mode, shared command bus, WebMCP tools, redacted
+state, bundled showcase tracks, real-time speed, targeted edit routing, and the
+explicit human-controlled **Download WAV** action are challenge-period
 additions.
 
 ## Dated code ledger

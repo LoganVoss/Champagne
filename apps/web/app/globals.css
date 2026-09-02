@@ -912,14 +912,14 @@ button {
   stroke-width: 1.8;
 }
 .demo-guide-callout-play {
-  bottom: calc(100% + 13px);
-  left: 50%;
-  transform: translateX(-50%);
+  top: 50%;
+  left: calc(100% + 18px);
+  transform: translateY(-50%);
 }
 .demo-guide-callout-play > svg {
-  top: calc(100% + 1px);
-  left: 50%;
-  transform: translateX(-50%) rotate(180deg);
+  top: 50%;
+  right: calc(100% + 1px);
+  transform: translateY(-50%) rotate(-90deg);
 }
 .copy-guide-anchor {
   position: relative;
@@ -1721,11 +1721,14 @@ button {
     padding-left: 12px;
   }
   .demo-guide-callout-play {
+    top: auto;
+    bottom: calc(100% + 13px);
     right: -2px;
     left: auto;
     transform: none;
   }
   .demo-guide-callout-play > svg {
+    top: calc(100% + 1px);
     right: 14px;
     left: auto;
     transform: rotate(180deg);

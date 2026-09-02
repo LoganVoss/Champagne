@@ -1,6 +1,6 @@
 # Champagne Web
 
-Champagne Web is a local-first, WebMCP-enabled mastering studio. A person and ChatGPT can direct the same live session, hear every result, adjust trim, fades, and speed, and prepare a 24-bit / 48 kHz WAV for a final user-controlled download. When WebMCP is unavailable, manual mode exposes Champagne's four signature styles and local mastering brief.
+Champagne Web is a local-first, WebMCP-enabled mastering studio. A person and ChatGPT can direct the same live session, hear every result, adjust trim, fades, and speed, and prepare a 24-bit / 48 kHz WAV for a final user-controlled download. When WebMCP is unavailable, manual mode exposes Champagne's four signature styles and direct audio controls.
 
 ## Run locally
 
@@ -11,15 +11,15 @@ npm run dev
 
 Open the local URL printed by the development server. Use **Demo** to load and switch among five included showcase tracks, or load your own WAV, AIFF, MP3, M4A, or FLAC file. Browser codec support varies by platform.
 
-## Mastering model and manual fallback
+## Mastering model and manual mode
 
-The four Champagne signatures are safe engine baselines, not the limit of the prompt surface. They appear as selectable buttons only in manual mode. In a WebMCP-enabled browser, ChatGPT chooses the baseline through the registered tools while the page presents copyable prompt ideas instead of a constrained text field. The local fallback compiler recognizes 25 named mastering directions and combines twelve bounded controls:
+The four Champagne signatures are safe engine baselines. They appear as selectable buttons only in manual mode. In a WebMCP-enabled browser, ChatGPT chooses the baseline through the registered tools while the page presents copyable prompt ideas instead of a constrained text field. ChatGPT can combine twelve bounded controls:
 
 - intensity, warmth, brightness, punch, and dynamics
 - low end, presence, air, and width
 - glue, density, and smoothness
 
-Each direction creates and activates a descriptively named custom style for the current session. Champagne extracts every supported signal from the message; unfamiliar or metaphorical language receives a conservative adaptive finish instead of an error.
+Each WebMCP mastering action creates and activates a descriptively named custom style for the current session.
 
 ## WebMCP
 
@@ -35,7 +35,7 @@ The top-level studio page imperatively registers nine page-bound tools through `
 - `set_track_speed`
 - `commit_master`
 
-Every tool calls the same command functions used by the live studio and manual fallback. Mastering and editing mutations validate a current `expectedStateVersion`, update the visible studio, and return only after the UI has had time to commit. Mixed requests are executed in order—mastering, trim/fades, then speed—while edit-only requests preserve the current master. Speed is bounded to 50–150%, with 100% at the slider center.
+Every tool calls the same command functions used by the live studio and manual controls. Mastering and editing mutations validate a current `expectedStateVersion`, update the visible studio, and return only after the UI has had time to commit. Mixed requests are executed in order—mastering, trim/fades, then speed—while edit-only requests preserve the current master. Speed is bounded to 50–150%, with 100% at the slider center.
 
 `commit_master` only selects an existing rendered style when the person explicitly asks for that selection. It is never an automatic post-master step. Saving is human-only: there is no download site tool, and the person uses the visible **Download WAV** button.
 
@@ -76,7 +76,7 @@ For WebMCP verification, use ChatGPT's built-in browser or another WebMCP-enable
 
 ## Contest publishing checklist
 
-- Choose and add a recognized open-source license before making the submission repository public.
+- Confirm the public repository shows the MIT license in its About section.
 - Keep the deployed app free and available through the judging period.
 - Record a public demo under three minutes using music you own or are authorized to show.
 - Show the ChatGPT conversation calling site tools, the active custom style, real-time original/master and speed changes, targeted edits that preserve the master, and the final **Download WAV** click.
