@@ -30,7 +30,7 @@ I implemented WebMCP by integrating nine page-bound tools through `document.mode
 They call the same command functions as the visible studio:
 
 - Inspect: `get_studio_state`, `analyze_track`
-- Master: `create_mastering_taken`, `refine_mastering_take`, `create_variations`
+- Master: `create_mastering_take`, `refine_mastering_take`, `create_variations`
 - Compare: `stage_comparison`, `commit_master`
 - Edit: `set_trim_fades`, `set_track_speed`
 
@@ -56,7 +56,7 @@ The artist always finishes the mastering process by clicking the Download WAV bu
 
 **People and agents can now work together to fine tune their music, bringing the mastering process into the next dimension of technology.**
 
-Manual (Non WebMCP) solutions exist for this type of work, but they are guarded behind individual track paywalls (up to $11.99 per song) or $100+ per year subscriptions - (**No thanks!**)
+Manual (Non-WebMCP) solutions exist for this type of work, but they are guarded behind individual track paywalls (up to $11.99 per song) or $100+ per year subscriptions - (**No thanks!**)
 
 Champagne was originally designed to be one [price](https://apps.apple.com/us/app/champagne-mastering-studio/id6758863788?mt=12), unlimited masters forever.
 

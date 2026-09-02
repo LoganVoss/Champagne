@@ -871,8 +871,79 @@ button {
 .source-switch button:disabled {
   opacity: 0.3;
 }
-.transport-row .play-button {
+.play-guide-anchor {
+  position: relative;
+  display: grid;
+  place-items: center;
   justify-self: center;
+}
+.demo-guide-callout {
+  position: absolute;
+  z-index: 8;
+  display: flex;
+  width: max-content;
+  max-width: min(260px, calc(100vw - 48px));
+  align-items: center;
+  border: 1px solid rgba(229, 195, 109, 0.28);
+  border-radius: 10px;
+  background: rgba(15, 14, 20, 0.96);
+  padding: 8px 11px;
+  color: rgba(255, 255, 255, 0.72);
+  box-shadow:
+    0 12px 34px rgba(0, 0, 0, 0.38),
+    0 0 24px rgba(217, 179, 89, 0.08);
+  backdrop-filter: blur(14px);
+  font-size: 10px;
+  font-weight: 580;
+  line-height: 1.35;
+  text-align: center;
+  pointer-events: none;
+  animation: demoGuideIn 0.34s cubic-bezier(0.2, 0.75, 0.2, 1) both;
+}
+.demo-guide-callout strong {
+  color: #e5c36d;
+  font-weight: 760;
+}
+.demo-guide-callout > svg {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  color: #e5c36d;
+  stroke-width: 1.8;
+}
+.demo-guide-callout-play {
+  bottom: calc(100% + 13px);
+  left: 50%;
+  transform: translateX(-50%);
+}
+.demo-guide-callout-play > svg {
+  top: calc(100% + 1px);
+  left: 50%;
+  transform: translateX(-50%) rotate(180deg);
+}
+.copy-guide-anchor {
+  position: relative;
+  display: inline-flex;
+}
+.demo-guide-callout-copy {
+  top: 50%;
+  left: calc(100% + 18px);
+  transform: translateY(-50%);
+}
+.demo-guide-callout-copy > svg {
+  top: 50%;
+  right: calc(100% + 1px);
+  transform: translateY(-50%) rotate(-90deg);
+}
+@keyframes demoGuideIn {
+  from {
+    opacity: 0;
+    filter: blur(2px);
+  }
+  to {
+    opacity: 1;
+    filter: none;
+  }
 }
 .transport-options {
   display: flex;
@@ -1619,7 +1690,7 @@ button {
   .transport-row {
     grid-template-columns: 1fr auto;
   }
-  .transport-row .play-button {
+  .play-guide-anchor {
     grid-column: 2;
     grid-row: 1;
   }
@@ -1648,6 +1719,28 @@ button {
   .chatgpt-prompt-ideas {
     padding-right: 12px;
     padding-left: 12px;
+  }
+  .demo-guide-callout-play {
+    right: -2px;
+    left: auto;
+    transform: none;
+  }
+  .demo-guide-callout-play > svg {
+    right: 14px;
+    left: auto;
+    transform: rotate(180deg);
+  }
+  .demo-guide-callout-copy {
+    top: auto;
+    bottom: calc(100% + 13px);
+    left: 50%;
+    transform: translateX(-50%);
+  }
+  .demo-guide-callout-copy > svg {
+    top: calc(100% + 1px);
+    right: auto;
+    left: 50%;
+    transform: translateX(-50%) rotate(180deg);
   }
 }
 
@@ -1698,6 +1791,9 @@ button {
     transform: none;
   }
   .studio-busy-indicator i {
+    animation: none;
+  }
+  .demo-guide-callout {
     animation: none;
   }
 }

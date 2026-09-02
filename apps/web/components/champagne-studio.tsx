@@ -90,6 +90,7 @@ import { registerChampagneTools, type StudioCommandApi } from '@/lib/webmcp';
 
 interface TrackRuntime {
   name: string;
+  exportBaseName: string;
   sourceKey: string;
   buffer: AudioBuffer;
   waveform: number[];
@@ -168,35 +169,35 @@ const PROMPT_SUGGESTIONS = [
 ];
 const DEMO_TRACKS = [
   {
-    name: 'Motorcycle',
+    name: 'Motorcycle by DeltaX',
     path: '/motorcycle-demo.m4a',
     fileName: 'Motorcycle.m4a',
     type: 'audio/mp4',
     sourceKey: 'motorcycle-demo-v1',
   },
   {
-    name: 'Interstellar',
+    name: 'Interstellar by DeltaX',
     path: '/audio/demo/interstellar.m4a',
     fileName: 'Interstellar.m4a',
     type: 'audio/mp4',
     sourceKey: 'interstellar-demo-v1',
   },
   {
-    name: 'Fire',
+    name: 'Fire by DeltaX',
     path: '/audio/demo/fire.m4a',
     fileName: 'Fire.m4a',
     type: 'audio/mp4',
     sourceKey: 'fire-demo-v1',
   },
   {
-    name: 'Light Beam',
+    name: 'Light Beam by DeltaX',
     path: '/audio/demo/light-beam.m4a',
     fileName: 'Light Beam.m4a',
     type: 'audio/mp4',
     sourceKey: 'light-beam-demo-v1',
   },
   {
-    name: 'Another Night Alone',
+    name: 'Another Night Alone by DeltaX',
     path: '/audio/demo/another-night-alone.m4a',
     fileName: 'Another Night Alone.m4a',
     type: 'audio/mp4',
@@ -210,18 +211,23 @@ function round(value: number, digits = 1): number {
 }
 
 function safeDownloadName(name: string, styleName: string): string {
-  const base =
-    name
+  const formatPart = (value: string, fallback: string, limit: number) => {
+    const formatted = value
       .replace(/\.[^.]+$/, '')
-      .replace(/[^a-zA-Z0-9 _-]/g, '')
-      .trim() || 'track';
-  const style =
-    styleName
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '_')
-      .replace(/^_|_$/g, '')
-      .slice(0, 36) || 'custom';
-  return `${base}_champagne_${style}.wav`;
+      .replace(/[^a-zA-Z0-9]+/g, ' ')
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean)
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join('-')
+      .slice(0, limit)
+      .replace(/-+$/, '');
+    return formatted || fallback;
+  };
+
+  const base = formatPart(name, 'Track', 64);
+  const style = formatPart(styleName, 'Custom', 48);
+  return `${base}-Champagne-${style}.wav`;
 }
 
 export function ChampagneStudio() {
@@ -250,6 +256,7 @@ export function ChampagneStudio() {
   const [copiedSuggestionIndex, setCopiedSuggestionIndex] = useState<
     number | null
   >(null);
+  const [demoGuideStep, setDemoGuideStep] = useState<1 | 2 | null>(null);
   const [stateVersion, setStateVersion] = useState(0);
   const [webmcpAvailable, setWebmcpAvailable] = useState(false);
   const [webmcpResolved, setWebmcpResolved] = useState(false);
@@ -350,6 +357,7 @@ export function ChampagneStudio() {
       }
 
       setCopiedSuggestionIndex(suggestionIndex);
+      setDemoGuideStep(null);
     } catch {
       setNotice(
         'Champagne could not copy that prompt. Please copy it manually.',
@@ -471,6 +479,7 @@ export function ChampagneStudio() {
       };
       setCurrentTime(safeOffset);
       setIsPlaying(true);
+      setDemoGuideStep((current) => (current === 1 ? 2 : current));
     },
     [currentTime, getMonitoredSource],
   );
@@ -676,8 +685,11 @@ export function ChampagneStudio() {
       sourceKey: string,
       buffer: AudioBuffer,
       demoIndex: number | null = null,
+      exportBaseName = name,
     ) => {
       const replacingTrack = Boolean(runtimeRef.current.track);
+      const enteringDemo =
+        demoIndex != null && runtimeRef.current.track?.demoIndex == null;
       stopPlayback(false);
       setPhase('analyzing');
       setNotice(null);
@@ -691,12 +703,17 @@ export function ChampagneStudio() {
       runtimeRef.current.speedPercent = 100;
       runtimeRef.current.speedEnabled = false;
       setMonitorMastered(false);
+      setDemoGuideStep((current) => {
+        if (demoIndex == null) return null;
+        return enteringDemo ? 1 : current;
+      });
       await afterPaint();
 
       const analysis = analyzeAudioBuffer(buffer);
       const waveform = makeWaveform(buffer);
       const loaded: TrackRuntime = {
         name,
+        exportBaseName,
         sourceKey,
         buffer,
         waveform,
@@ -795,7 +812,13 @@ export function ChampagneStudio() {
         const file = new File([blob], demo.fileName, { type: demo.type });
         const buffer = await decodeAudioFile(file);
         if (requestId !== loadRequestRef.current) return;
-        await loadDecodedTrack(demo.name, demo.sourceKey, buffer, demoIndex);
+        await loadDecodedTrack(
+          demo.name,
+          demo.sourceKey,
+          buffer,
+          demoIndex,
+          demo.fileName,
+        );
       } catch (error) {
         const showError = () => {
           setPhase(runtimeRef.current.track ? 'ready' : 'empty');
@@ -1131,9 +1154,7 @@ export function ChampagneStudio() {
       setPhase('rendering');
       setMonitorMastered(true);
       const constraintList =
-        input.constraint === 'none'
-          ? []
-          : [input.constraint.replaceAll('_', ' ')];
+        input.constraint === 'none' ? [] : [input.constraint];
       setIntentDisplay({
         mode: 'variations',
         style: uniqueStyles[0],
@@ -1517,7 +1538,7 @@ export function ChampagneStudio() {
         runtimeRef.current.speedPercent,
       );
       const url = URL.createObjectURL(blob);
-      const fileName = safeDownloadName(sourceTrack.name, styleName);
+      const fileName = safeDownloadName(sourceTrack.exportBaseName, styleName);
       const previous = preparedDownloadRef.current;
       preparedDownloadRef.current = {
         url,
@@ -2077,6 +2098,7 @@ export function ChampagneStudio() {
       runtimeRef.current.speedPercent = 100;
       runtimeRef.current.speedEnabled = false;
       setBrief('');
+      setDemoGuideStep(null);
       setIntentDisplay(null);
       setNotice(null);
       setActivity([]);
@@ -2414,22 +2436,34 @@ export function ChampagneStudio() {
                         <Sparkles /> Mastered
                       </button>
                     </div>
-                    <button
-                      className="play-button"
-                      type="button"
-                      aria-label={isPlaying ? 'Pause' : 'Play'}
-                      onClick={() =>
-                        playbackRef.current
-                          ? stopPlayback()
-                          : void startPlayback()
-                      }
-                    >
-                      {isPlaying ? (
-                        <Pause className="fill-current" />
-                      ) : (
-                        <Play className="fill-current" />
-                      )}
-                    </button>
+                    <div className="play-guide-anchor">
+                      {webmcpAvailable &&
+                        track.demoIndex != null &&
+                        demoGuideStep === 1 && (
+                          <output className="demo-guide-callout demo-guide-callout-play">
+                            <span>
+                              <strong>Step 1:</strong> Press play
+                            </span>
+                            <ArrowUp aria-hidden="true" />
+                          </output>
+                        )}
+                      <button
+                        className="play-button"
+                        type="button"
+                        aria-label={isPlaying ? 'Pause' : 'Play'}
+                        onClick={() =>
+                          playbackRef.current
+                            ? stopPlayback()
+                            : void startPlayback()
+                        }
+                      >
+                        {isPlaying ? (
+                          <Pause className="fill-current" />
+                        ) : (
+                          <Play className="fill-current" />
+                        )}
+                      </button>
+                    </div>
                     <div className="transport-options">
                       <div className="speed-control">
                         <div className="speed-control-head">
@@ -2581,22 +2615,33 @@ export function ChampagneStudio() {
                           {PROMPT_SUGGESTIONS[suggestionIndex]}
                         </span>
                       </p>
-                      <button
-                        type="button"
-                        className="copy-suggestion-button"
-                        onClick={() => void copyCurrentSuggestion()}
-                      >
-                        {copiedSuggestionIndex === suggestionIndex ? (
-                          <Check aria-hidden="true" />
-                        ) : (
-                          <Copy aria-hidden="true" />
+                      <div className="copy-guide-anchor">
+                        {track.demoIndex != null && demoGuideStep === 2 && (
+                          <output className="demo-guide-callout demo-guide-callout-copy">
+                            <span>
+                              <strong>Step 2:</strong> Copy and paste into
+                              ChatGPT
+                            </span>
+                            <ArrowUp aria-hidden="true" />
+                          </output>
                         )}
-                        <span aria-live="polite">
-                          {copiedSuggestionIndex === suggestionIndex
-                            ? 'Copied'
-                            : 'Copy prompt'}
-                        </span>
-                      </button>
+                        <button
+                          type="button"
+                          className="copy-suggestion-button"
+                          onClick={() => void copyCurrentSuggestion()}
+                        >
+                          {copiedSuggestionIndex === suggestionIndex ? (
+                            <Check aria-hidden="true" />
+                          ) : (
+                            <Copy aria-hidden="true" />
+                          )}
+                          <span aria-live="polite">
+                            {copiedSuggestionIndex === suggestionIndex
+                              ? 'Copied'
+                              : 'Copy prompt'}
+                          </span>
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ) : (

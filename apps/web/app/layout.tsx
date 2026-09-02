@@ -16,7 +16,7 @@ export const metadata: Metadata = {
   metadataBase: new URL('https://champagne.vossx.chatgpt.site'),
   title: 'Champagne — Agentic Music Mastering',
   description:
-    'AI guides the physics behind Champagne’s mastering engine. Compare original and mastered versions, then download your masterpiece.',
+    'ChatGPT guides the physics behind Champagne’s mastering engine. Compare original and mastered versions, then download your masterpiece.',
   icons: {
     icon: '/favicon-64.png',
     apple: '/champagne-icon.png',
@@ -24,14 +24,14 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'Champagne — Agentic Music Mastering',
     description:
-      'AI directs. Champagne masters. Hear every revision and keep your audio on your device.',
+      'ChatGPT directs. Champagne masters. Hear every revision and keep your audio on your device.',
     type: 'website',
     images: [
       {
         url: '/og.png',
         width: 1672,
         height: 941,
-        alt: 'Champagne AI-directed mastering studio',
+        alt: 'Champagne ChatGPT-directed mastering studio',
       },
     ],
   },
@@ -39,7 +39,7 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: 'Champagne — Agentic Music Mastering',
     description:
-      'AI directs. Champagne masters. Your audio stays on your device.',
+      'ChatGPT directs. Champagne masters. Your audio stays on your device.',
     images: ['/og.png'],
   },
 };
