@@ -50,7 +50,7 @@ Tonal adjustments editable by ChatGPT include:
 - **Density:** Increases perceived fullness and sustained energy.
 - **Smoothness**: Softens rough edges, harshness, and overly aggressive peaks.
 
-Every mutation checks the studio state version, so stale agent actions cannot overwrite a new human decision. Audio is decoded, analyzed, rendered, played, and exported locally in the user’s browser. WebMCP payloads exclude audio bytes, waveforms, filenames, and local paths. The source file is never overwritten.
+Before an action is applied, Champagne verifies the current studio state, ensuring that stale agent actions cannot overwrite newer human decisions. Audio is decoded, analyzed, rendered, played, and exported locally in the user’s browser. WebMCP payloads exclude audio bytes, waveforms, filenames, and local paths. The source file is never overwritten.
 
 The artist always finishes the mastering process by clicking the Download WAV button.
 
