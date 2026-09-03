@@ -57,18 +57,18 @@ page; this file carries the details for a reviewer who wants the audit trail.
 
 Before sharing the link with Devpost:
 
-- [ ] `git ls-files apps/web` shows source, public assets, and package lock;
+- [x] `git ls-files apps/web` shows source, public assets, and package lock;
   `node_modules`, `dist`, scratch exports, and nested `.git` are absent.
-- [ ] The root `LICENSE` is MIT and appears in GitHub's detected license/About
+- [x] The root `LICENSE` is MIT and appears in GitHub's detected license/About
   metadata when queried without authentication.
-- [ ] The repo visibility is public when checked without a GitHub session.
-- [ ] The live URL loads without a private login or local-file dependency.
-- [ ] **Demo** loads Motorcycle and the arrow control switches among all five bundled tracks.
-- [ ] ChatGPT's in-app browser (or Chrome 149+ with WebMCP enabled) can inspect
+- [x] The repo visibility is public when checked without a GitHub session.
+- [x] The live URL loads without a private login or local-file dependency.
+- [x] **Demo** loads Motorcycle and the arrow control switches among all five bundled tracks.
+- [x] ChatGPT's in-app browser can inspect
   the nine registered tools and complete prompt → render → targeted edit flows,
   followed by the visible **Download WAV** click.
-- [ ] The video is public, under three minutes, and includes spoken audio.
-- [ ] No API keys, tokens, private paths, or local credentials are committed.
+- [x] The video is public, includes audio, and is 2:02 long.
+- [x] No API keys, tokens, private paths, or local credentials are committed.
 
 ## Final freeze reminder
 

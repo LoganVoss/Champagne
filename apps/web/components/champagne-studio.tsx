@@ -2406,7 +2406,8 @@ export function ChampagneStudio() {
                               <strong>
                                 Every song needs a slightly different touch.
                               </strong>{' '}
-                              That&apos;s where ChatGPT makes the difference.
+                              That&apos;s where ChatGPT + WebMCP delivers
+                              results.
                             </p>
                           </div>
                         </DialogContent>

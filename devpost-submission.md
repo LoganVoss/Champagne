@@ -4,7 +4,7 @@
 
 ## Title
 
-Champagne — Agentic Music Mastering
+Champagne - Agentic Music Mastering
 
 ## One-line summary
 
@@ -13,17 +13,17 @@ audible master in real time through WebMCP.
 
 ## Problem
 
-Mastering is a listening problem disguised as a control problem. An artist can
-describe the feeling a track needs—more weight, less glare, wider space,
-punchier drums—but conventional software makes them translate that thought
+AI-generated music often arrives thin and unfinished. An artist can describe
+the feeling a track needs—more weight, less glare, wider space, punchier
+drums—but conventional mastering software makes them translate that thought
 into knobs and then wait through repeated renders. Agents have the opposite
 problem: they can discuss music, but generic browser automation cannot safely
-operate an audio instrument, hear the result, or know whether a click landed on
-the right take.
+operate an audio instrument or know whether a click landed on the right take.
 
 ## Solution
 
-Champagne turns a mastering session into a shared, audible conversation. A
+Champagne makes an AI song radio-ready in seconds by turning a mastering
+session into a shared, audible conversation. A
 person loads a local track or clicks **Demo** to switch among five bundled
 DeltaX tracks. In a WebMCP-enabled browser, the page offers readable prompt
 ideas that can be copied directly into ChatGPT. ChatGPT turns that musical
@@ -92,11 +92,12 @@ imperatively registers nine tools:
 - `set_track_speed`
 - `commit_master`
 
-Each tool has an explicit JSON input schema, safe bounds, read/write
-annotations, and an abort signal. `apps/web/components/champagne-studio.tsx`
-exposes a typed command API. The four manual signature controls and nine
-WebMCP tools call that same API. Mutations validate `expectedStateVersion`,
-update the visible studio, and return after the state commit.
+Each tool has an explicit JSON input schema, safe bounds, and read/write
+annotations; rendering tools also honor agent cancellation.
+`apps/web/components/champagne-studio.tsx` exposes a typed command API. The
+four manual signature controls and nine WebMCP tools call that same API.
+Mutations validate `expectedStateVersion`, update the visible studio, and
+return after the state commit.
 `get_studio_state` and tool results are intentionally redacted.
 
 ChatGPT maps natural language into four proven baselines and 12 bounded
@@ -148,7 +149,7 @@ reference implementation.
 ## Testing instructions
 
 1. Open the [live Champagne demo](https://champagne.vossx.chatgpt.site/)
-   in ChatGPT's in-app browser, or in Chrome 149+ with WebMCP enabled.
+   in ChatGPT's in-app browser.
 2. Click **Demo**, wait for Motorcycle by DeltaX to load, and press Play when
    the Step 1 guide appears.
 3. Copy the suggested prompt when Step 2 appears, paste it into ChatGPT, and
@@ -181,10 +182,10 @@ https://github.com/LoganVoss/Champagne
 
 ## Demo video
 
-Public YouTube URL: **Add before submission.**
+Public YouTube URL: https://www.youtube.com/watch?v=Fo_C-tZfEZc
 
-The final video must be public, under three minutes, and include clear audio
-demonstrating Champagne and its WebMCP workflow.
+Verified public and playable at 2:02. It demonstrates Champagne and its WebMCP
+workflow with audio.
 
 ## Screenshot plan
 
@@ -202,8 +203,7 @@ The native project predates the challenge. The web studio and WebMCP additions
 are dated after August 25, 2026 and are recorded in
 [`docs/challenge-evidence.md`](docs/challenge-evidence.md). The repository is
 public with detected MIT license metadata. The remaining readiness items are
-the final Devpost form values, public video URL, screenshots, and a last
-logged-out end-to-end test of the public site.
+the final personal Devpost form choices and optional gallery screenshots.
 
 The browser engine is intentionally a real, audible contest slice rather than
 a claim of sample-for-sample parity with every native Accelerate operation.
@@ -225,12 +225,11 @@ them:
 - **Live URL (28254):** `https://champagne.vossx.chatgpt.site/`.
 - **Testing instructions (28255):** use the numbered flow above.
 - **URL to PUBLIC Code Repo (28256):** `https://github.com/LoganVoss/Champagne`.
-- **Agent(s) or client(s) tested (28257):** ChatGPT in-app browser. Add
-  WebMCP-enabled Chrome 149+ only after testing it separately.
+- **Agent(s) or client(s) tested (28257):** ChatGPT in-app browser.
 - **AI tools leveraged (28258):** ChatGPT; Codex.
 - **Level of learning (28259):** choose the accurate value.
 - **Career AI value (28260):** choose the accurate value.
-- **Demo video:** public YouTube URL after recording.
+- **Demo video:** `https://www.youtube.com/watch?v=Fo_C-tZfEZc`.
 
 ## Judging alignment
 
