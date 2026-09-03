@@ -154,7 +154,7 @@ const PROMPT_SUGGESTIONS = [
   'Create a relaxing, calm, and fluid master with a long five-second fade at each end.',
   'Create a wide, cinematic master with clear vocals and controlled bass. Trim the first second, fade out the final three seconds, and slow the track by 5%.',
   'Make this radio-ready: bright, punchy, and balanced. Cut two seconds from both ends and fade each side for one second.',
-  'Create a dark, intimate master with warm mids and soft highs. Fade in over four seconds and fade out over four seconds.',
+  'Create a bright, vibrant, and exciting master with crisp highs, and tight lows. Cut the first second and the last second. Fade the first three seconds and the last three seconds. Increase speed by 25%.',
   'Give this a clean festival master with tight subs, wide energy, and smooth transients. Trim one second from each end and increase speed by 5%.',
 ];
 const DEMO_TRACKS = [
