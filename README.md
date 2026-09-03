@@ -54,6 +54,8 @@ Before an action is applied, Champagne verifies the current studio state, ensuri
 
 The artist always finishes the mastering process by clicking the Download WAV button.
 
+## Conclusion:
+
 **People and agents can now work together to fine tune their music, bringing the mastering process into the next dimension of technology.**
 
 Manual (Non-WebMCP) solutions exist for this type of work, but they are guarded behind individual track paywalls (up to $11.99 per song) or $100+ per year subscriptions - (**No thanks!**)
