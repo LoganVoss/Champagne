@@ -8,6 +8,39 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"></a>
 </p>
 
+## Start here
+
+This repository contains both the native macOS app and the browser-based WebMCP studio.
+
+- **Browser studio:** [`apps/web/`](apps/web), with the [web guide](apps/web/README.md) covering manual mode, WebMCP tools, audio processing, and verification.
+- **Native macOS app:** [`Champagne/`](Champagne) and [`Champagne.xcodeproj`](Champagne.xcodeproj).
+- **Architecture:** [Swift-to-WebMCP notes](docs/swift-to-webmcp.md) explain the relationship between the native and web implementations.
+- **Challenge history:** [What changed for the challenge](CHALLENGE_DELTA.md) and [verification evidence](docs/challenge-evidence.md).
+- **Licensing:** [MIT license](LICENSE) and [asset licenses](ASSET_LICENSES.md).
+
+### Run the browser studio locally
+
+Use **Node.js 22.13.0 or newer** and npm. From a fresh checkout:
+
+```bash
+git clone https://github.com/LoganVoss/Champagne.git
+cd Champagne/apps/web
+npm ci
+npm run dev
+```
+
+Open the local URL printed by the development server. The studio supports manual use when WebMCP is unavailable; agent controls require a WebMCP-enabled browser.
+
+From `apps/web/`, the available verification commands include:
+
+```bash
+npm run build
+npx tsc --noEmit
+npm run lint
+```
+
+See the [web guide](apps/web/README.md#verify) for interactive WebMCP verification. Build and type checks do not replace listening tests or browser verification.
+
 ## About
 
 Champagne is a music mastering studio that enables artists and ChatGPT to put the final
